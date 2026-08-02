@@ -14,3 +14,8 @@ export interface Message {
   metadata?: Record<string, unknown> | null;
   status?: 'sending' | 'sent' | 'error'; // Для Optimistic UI
 }
+
+export interface NativiqAction {
+  actionId: string;
+  payload?: any;
+}

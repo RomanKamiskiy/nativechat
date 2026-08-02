@@ -25,7 +25,12 @@ function App() {
       <div style={{ width: '100%', maxWidth: '420px', height: '600px' }}>
         <h2 style={{ textAlign: 'center', color: '#333', marginBottom: '20px' }}>NativeChat Demo</h2>
         {session ? (
-          <ChatWidget conversationId={session.conversationId} height="100%" token={session.token} />
+          <ChatWidget
+            conversationId={session.conversationId}
+            height="100%"
+            token={session.token}
+            onAction={(action) => alert('Экшен вызван: ' + JSON.stringify(action))}
+          />
         ) : (
           <p style={{ textAlign: 'center', color: '#888' }}>Подключение к серверу...</p>
         )}

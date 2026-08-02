@@ -1,8 +1,13 @@
 import React from 'react';
 import { useChatStore } from '../store';
 import { PricingCard } from './cards/PricingCard';
+import { NativiqAction } from '../types';
 
-export const MessageList = () => {
+export interface MessageListProps {
+  onAction?: (action: NativiqAction) => void;
+}
+
+export const MessageList = ({ onAction }: MessageListProps) => {
   const messages = useChatStore((state) => state.messages);
   const typingUsers = useChatStore((state) => state.typingUsers);
   const currentUserId = useChatStore((state) => state.currentUserId);
@@ -16,7 +21,7 @@ export const MessageList = () => {
         if (msg.type === 'pricing_card') {
           return (
             <div key={msg.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', marginBottom: '8px' }}>
-              <PricingCard metadata={msg.metadata || {}} />
+              <PricingCard metadata={msg.metadata || {}} onAction={onAction} />
             </div>
           );
         }

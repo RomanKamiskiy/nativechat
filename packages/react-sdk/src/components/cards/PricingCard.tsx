@@ -1,6 +1,7 @@
 import React from 'react';
+import { NativiqAction } from '../../types';
 
-export const PricingCard = ({ metadata }: { metadata: any }) => {
+export const PricingCard = ({ metadata, onAction }: { metadata: any, onAction?: (action: NativiqAction) => void }) => {
   return (
     <div style={{
       backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px',
@@ -12,14 +13,17 @@ export const PricingCard = ({ metadata }: { metadata: any }) => {
         ${metadata.price || '99'} <span style={{ fontSize: '14px', fontWeight: 'normal', color: '#64748b' }}>/ мес</span>
       </p>
       <ul style={{ padding: 0, margin: '0 0 16px 0', listStyle: 'none', fontSize: '14px', color: '#475569' }}>
-        {(metadata.features || ['Все функции', 'Приоритетная поддержка']).map((feat: string, i: number) => (
+        {(metadata.features || ['Все функции']).map((feat: string, i: number) => (
           <li key={i} style={{ marginBottom: '6px' }}>✅ {feat}</li>
         ))}
       </ul>
-      <button style={{
-        width: '100%', padding: '10px', backgroundColor: '#007aff', color: '#fff',
-        border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600'
-      }}>
+      <button
+        onClick={() => onAction && onAction({ actionId: 'checkout', payload: { price: metadata.price } })}
+        style={{
+          width: '100%', padding: '10px', backgroundColor: '#007aff', color: '#fff',
+          border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600'
+        }}
+      >
         Оплатить
       </button>
     </div>

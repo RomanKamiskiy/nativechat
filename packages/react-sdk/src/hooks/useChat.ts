@@ -37,8 +37,7 @@ export const useChat = ({
     setCurrentUserId(payload?.userId ?? null);
   }, [token, setCurrentUserId]);
 
-  // 1. Загрузка истории сообщений при старте
-  useEffect(() => {
+  const loadHistory = useCallback(() => {
     fetch(`${apiUrl}/api/conversations/${conversationId}/messages`)
       .then(res => res.json())
       .then(data => {
@@ -47,46 +46,74 @@ export const useChat = ({
         }
       })
       .catch(console.error);
-  }, [conversationId, apiUrl, setMessages]);
+  }, [apiUrl, conversationId, setMessages]);
 
-  // 2. Управление WebSocket соединением
+  // 1. Загрузка истории сообщений при старте
   useEffect(() => {
-    const ws = new WebSocket(`${wsUrl}?token=${token}`);
-    wsRef.current = ws;
+    loadHistory();
+  }, [loadHistory]);
 
-    ws.onopen = () => {
-      setConnected(true);
-      ws.send(JSON.stringify({
-        type: 'join_room',
-        payload: { conversationId }
-      }));
+  // 2. Управление WebSocket соединением + reconnect
+  useEffect(() => {
+    let disposed = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempt = 0;
+
+    const connect = () => {
+      if (disposed) return;
+
+      const ws = new WebSocket(`${wsUrl}?token=${token}`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        attempt = 0;
+        setConnected(true);
+        ws.send(JSON.stringify({
+          type: 'join_room',
+          payload: { conversationId }
+        }));
+        // После реконнекта подтягиваем историю
+        loadHistory();
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        switch (data.type) {
+          case 'new_message':
+            addMessage(data.payload);
+            break;
+          case 'typing_start':
+            addTypingUser({
+              id: data.payload.userId,
+              name: data.payload.name,
+            });
+            break;
+          case 'typing_stop':
+            removeTypingUser(data.payload.userId);
+            break;
+        }
+      };
+
+      ws.onclose = () => {
+        setConnected(false);
+        if (disposed) return;
+
+        const delay = Math.min(1000 * 2 ** attempt, 10000);
+        attempt += 1;
+        reconnectTimer = setTimeout(connect, delay);
+      };
     };
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      
-      switch (data.type) {
-        case 'new_message':
-          addMessage(data.payload);
-          break;
-        case 'typing_start':
-          addTypingUser({
-            id: data.payload.userId,
-            name: data.payload.name,
-          });
-          break;
-        case 'typing_stop':
-          removeTypingUser(data.payload.userId);
-          break;
-      }
-    };
-
-    ws.onclose = () => setConnected(false);
+    connect();
 
     return () => {
-      ws.close();
+      disposed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      wsRef.current?.close();
+      wsRef.current = null;
     };
-  }, [token, conversationId, wsUrl, setConnected, addMessage, addTypingUser, removeTypingUser]);
+  }, [token, conversationId, wsUrl, setConnected, addMessage, addTypingUser, removeTypingUser, loadHistory]);
 
   // 3. Методы для отправки данных (с Optimistic UI)
   const sendMessage = useCallback((content: string) => {

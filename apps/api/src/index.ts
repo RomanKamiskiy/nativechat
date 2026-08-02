@@ -87,27 +87,23 @@ fastify.post('/api/auth/token', async (request, reply) => {
   }
 });
 
-// Эндпоинт для получения истории сообщений в чате
-fastify.get('/api/conversations/:conversationId/messages', async (request, reply) => {
-  const { conversationId } = request.params as { conversationId: string };
-  
+// Получение истории сообщений
+fastify.get('/api/conversations/:id/messages', async (request, reply) => {
+  const { id } = request.params as { id: string };
+
   try {
     const messages = await prisma.message.findMany({
-      where: { conversationId },
+      where: { conversationId: id },
       orderBy: { createdAt: 'asc' },
-      include: {
-        sender: {
-          select: { id: true, name: true, avatarUrl: true } // Не отдаем лишние данные
-        }
-      }
+      include: { sender: { select: { id: true, name: true, avatarUrl: true } } }
     });
-    
     return { messages };
   } catch (error) {
     fastify.log.error(error);
     return reply.status(500).send({ error: 'Failed to fetch messages' });
   }
 });
+
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const pub = new Redis(REDIS_URL);
