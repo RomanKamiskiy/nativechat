@@ -9,7 +9,7 @@
   "scripts": {
     "dev:api": "npm run dev -w @nativechat/api",
     "dev:web": "npm run dev -w @nativechat/web",
-    "build": "npm run build --workspaces",
+    "build": "npm run build --workspaces --if-present",
     "db:up": "docker-compose up -d"
   }
 }
