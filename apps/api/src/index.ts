@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { parse } from 'url';
+import { Redis } from 'ioredis';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
@@ -54,6 +55,31 @@ fastify.get('/api/conversations/:conversationId/messages', async (request, reply
   } catch (error) {
     fastify.log.error(error);
     return reply.status(500).send({ error: 'Failed to fetch messages' });
+  }
+});
+
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const pub = new Redis(REDIS_URL);
+const sub = new Redis(REDIS_URL);
+
+// Подписываемся на канал сообщений чата
+sub.subscribe('chat_events');
+
+sub.on('message', (channel, message) => {
+  if (channel === 'chat_events') {
+    const data = JSON.parse(message);
+    const { roomId, payload } = data;
+    
+    // Рассылаем локально подключенным клиентам в этой комнате
+    const roomClients = rooms.get(roomId);
+    if (roomClients) {
+      const broadcastData = JSON.stringify(payload);
+      roomClients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(broadcastData);
+        }
+      });
+    }
   }
 });
 
@@ -119,20 +145,16 @@ fastify.ready((err) => {
             }
           });
 
-          // 2. Рассылаем всем участникам комнаты
-          const roomClients = rooms.get(currentRoom);
-          if (roomClients) {
-            const broadcastData = JSON.stringify({
-              type: 'new_message',
-              payload: savedMessage
-            });
-            
-            roomClients.forEach((client) => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(broadcastData);
-              }
-            });
-          }
+          // 2. Публикуем событие в Redis вместо прямой рассылки
+          const broadcastData = {
+            type: 'new_message',
+            payload: savedMessage
+          };
+          
+          pub.publish('chat_events', JSON.stringify({
+            roomId: currentRoom,
+            payload: broadcastData
+          }));
         }
       } catch (err) {
         fastify.log.error('WS Error:', err);
