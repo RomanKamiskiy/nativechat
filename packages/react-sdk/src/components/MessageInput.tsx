@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
-import { useChat } from '../hooks/useChat';
 
 export interface MessageInputProps {
-  token: string;
-  conversationId: string;
+  sendMessage: (content: string) => void;
+  startTyping: () => void;
+  stopTyping: () => void;
 }
 
-export const MessageInput = ({ token, conversationId }: MessageInputProps) => {
+export const MessageInput = ({ sendMessage, startTyping, stopTyping }: MessageInputProps) => {
   const [text, setText] = useState('');
-  const { sendMessage, startTyping, stopTyping } = useChat({ token, conversationId });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setText(e.target.value);

@@ -8,6 +8,16 @@ export interface UseChatConfig {
   apiUrl?: string;
 }
 
+function decodeJwtPayload(token: string): { userId?: string; name?: string } | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    return JSON.parse(atob(payload));
+  } catch {
+    return null;
+  }
+}
+
 export const useChat = ({ 
   token, 
   conversationId, 
@@ -19,8 +29,13 @@ export const useChat = ({
   const { 
     messages, typingUsers, isConnected,
     setConnected, setMessages, addMessage, 
-    addTypingUser, removeTypingUser
+    addTypingUser, removeTypingUser, setCurrentUserId
   } = useChatStore();
+
+  useEffect(() => {
+    const payload = decodeJwtPayload(token);
+    setCurrentUserId(payload?.userId ?? null);
+  }, [token, setCurrentUserId]);
 
   // 1. Загрузка истории сообщений при старте
   useEffect(() => {
@@ -55,7 +70,10 @@ export const useChat = ({
           addMessage(data.payload);
           break;
         case 'typing_start':
-          addTypingUser(data.payload);
+          addTypingUser({
+            id: data.payload.userId,
+            name: data.payload.name,
+          });
           break;
         case 'typing_stop':
           removeTypingUser(data.payload.userId);

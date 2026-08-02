@@ -29,11 +29,62 @@ fastify.post('/api/auth/token', async (request, reply) => {
     return reply.status(400).send({ error: 'Missing required fields' });
   }
 
-  // В реальном приложении здесь будет проверка секретного ключа проекта
-  // и создание/апдейт юзера в БД. Пока просто выдаем токен.
-  
-  const token = fastify.jwt.sign({ projectId, userId, name });
-  return { token };
+  try {
+    // Создаём/находим проект, юзера и conversation с реальными UUID для FK
+    let project = await prisma.project.findFirst({ where: { name: projectId } });
+    if (!project) {
+      project = await prisma.project.create({ data: { name: projectId } });
+    }
+
+    let user = await prisma.user.findUnique({
+      where: {
+        projectId_externalId: {
+          projectId: project.id,
+          externalId: userId,
+        },
+      },
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          projectId: project.id,
+          externalId: userId,
+          name,
+        },
+      });
+    } else if (user.name !== name) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { name },
+      });
+    }
+
+    let conversation = await prisma.conversation.findFirst({
+      where: { projectId: project.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!conversation) {
+      conversation = await prisma.conversation.create({
+        data: { projectId: project.id },
+      });
+    }
+
+    const token = fastify.jwt.sign({
+      projectId: project.id,
+      userId: user.id,
+      name: user.name,
+    });
+
+    return {
+      token,
+      conversationId: conversation.id,
+      userId: user.id,
+    };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Failed to issue token' });
+  }
 });
 
 // Эндпоинт для получения истории сообщений в чате
@@ -201,7 +252,7 @@ fastify.ready((err) => {
           }));
         }
       } catch (err) {
-        fastify.log.error('WS Error:', err);
+        fastify.log.error({ err }, 'WS Error');
       }
     });
 

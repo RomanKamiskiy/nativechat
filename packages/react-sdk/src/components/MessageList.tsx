@@ -5,16 +5,17 @@ import { PricingCard } from './cards/PricingCard';
 export const MessageList = () => {
   const messages = useChatStore((state) => state.messages);
   const typingUsers = useChatStore((state) => state.typingUsers);
+  const currentUserId = useChatStore((state) => state.currentUserId);
 
   return (
     <div className="nc-message-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', overflowY: 'auto', flex: 1 }}>
       {messages.map((msg) => {
-        const isMe = msg.senderId === 'me';
+        const isMe = msg.senderId === 'me' || (!!currentUserId && msg.senderId === currentUserId);
         
         // Рендер кастомной карточки
         if (msg.type === 'pricing_card') {
           return (
-            <div key={msg.id} style={{ alignSelf: 'flex-start', marginBottom: '8px' }}>
+            <div key={msg.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', marginBottom: '8px' }}>
               <PricingCard metadata={msg.metadata || {}} />
             </div>
           );
