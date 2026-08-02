@@ -33,6 +33,28 @@ fastify.post('/api/auth/token', async (request, reply) => {
   return { token };
 });
 
+// Эндпоинт для получения истории сообщений в чате
+fastify.get('/api/conversations/:conversationId/messages', async (request, reply) => {
+  const { conversationId } = request.params as { conversationId: string };
+  
+  try {
+    const messages = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        sender: {
+          select: { id: true, name: true, avatarUrl: true } // Не отдаем лишние данные
+        }
+      }
+    });
+    
+    return { messages };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Failed to fetch messages' });
+  }
+});
+
 const start = async () => {
   try {
     await fastify.listen({ port: 3001, host: '0.0.0.0' });
