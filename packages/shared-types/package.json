@@ -1,13 +1,8 @@
 {
   "name": "@nativechat/shared-types",
-  "version": "0.0.1",
-  "private": true,
-  "description": "Shared TypeScript types for NativeChat API and SDK",
+  "version": "1.0.0",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "echo \"No build yet\"",
-    "lint": "echo \"No lint yet\"",
-    "test": "echo \"No tests yet\""
+    "build": "tsc"
   }
 }

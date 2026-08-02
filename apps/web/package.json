@@ -1,16 +1,8 @@
 {
   "name": "@nativechat/web",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
-  "description": "NativeChat Developer Console & Landing page",
   "scripts": {
-    "dev": "echo \"Web workspace ready — implement next\"",
-    "build": "echo \"No build yet\"",
-    "lint": "echo \"No lint yet\"",
-    "test": "echo \"No tests yet\""
-  },
-  "dependencies": {
-    "@nativechat/shared-types": "*",
-    "@nativechat/react-sdk": "*"
+    "dev": "next dev"
   }
 }

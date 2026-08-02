@@ -1,20 +1,8 @@
 {
   "name": "@nativechat/react-sdk",
-  "version": "0.0.1",
-  "private": true,
-  "description": "NativeChat headless React SDK — hooks and UI primitives",
+  "version": "1.0.0",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "scripts": {
-    "dev": "echo \"React SDK workspace ready — implement next\"",
-    "build": "echo \"No build yet\"",
-    "lint": "echo \"No lint yet\"",
-    "test": "echo \"No tests yet\""
-  },
-  "dependencies": {
-    "@nativechat/shared-types": "*"
-  },
-  "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0"
+    "build": "tsc"
   }
 }
