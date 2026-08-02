@@ -141,13 +141,27 @@ fastify.ready((err) => {
         if (data.type === 'send_message' && currentRoom) {
           const { content } = data.payload;
 
+          let messageType = 'text';
+          let messageMetadata = null;
+
+          // Тестовый триггер для карточки тарифов (имитация AI)
+          if (content.trim() === '/pricing') {
+            messageType = 'pricing_card';
+            messageMetadata = {
+              title: 'NativeChat Pro',
+              price: 99,
+              features: ['Безлимит чатов', 'AI Ассистент', 'Custom UI Карточки']
+            };
+          }
+
           // 1. Сохраняем в БД
           const savedMessage = await prisma.message.create({
             data: {
-              content,
+              content: content.trim() === '/pricing' ? 'Тарифные планы' : content,
               senderId: user.userId,
               conversationId: currentRoom,
-              type: 'text'
+              type: messageType,
+              metadata: messageMetadata || undefined
             },
             include: {
               sender: { select: { id: true, name: true, avatarUrl: true } }

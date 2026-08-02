@@ -63,7 +63,8 @@ model Message {
   senderId       String
   sender         User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
   content        String        @db.Text
-  type           String        @default("text") 
+  type           String        @default("text")
+  metadata       Json?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 }

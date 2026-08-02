@@ -1,5 +1,6 @@
 import React from 'react';
 import { useChatStore } from '../store';
+import { PricingCard } from './cards/PricingCard';
 
 export const MessageList = () => {
   const messages = useChatStore((state) => state.messages);
@@ -9,6 +10,17 @@ export const MessageList = () => {
     <div className="nc-message-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', overflowY: 'auto', flex: 1 }}>
       {messages.map((msg) => {
         const isMe = msg.senderId === 'me';
+        
+        // Рендер кастомной карточки
+        if (msg.type === 'pricing_card') {
+          return (
+            <div key={msg.id} style={{ alignSelf: 'flex-start', marginBottom: '8px' }}>
+              <PricingCard metadata={msg.metadata || {}} />
+            </div>
+          );
+        }
+
+        // Стандартный текстовый рендер
         return (
           <div key={msg.id} className={`nc-message ${isMe ? 'nc-message-out' : 'nc-message-in'}`} style={{
             alignSelf: isMe ? 'flex-end' : 'flex-start',

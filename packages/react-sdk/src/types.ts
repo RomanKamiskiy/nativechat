@@ -11,5 +11,6 @@ export interface Message {
   sender?: User;
   createdAt: string | Date;
   type: string;
+  metadata?: Record<string, unknown> | null;
   status?: 'sending' | 'sent' | 'error'; // Для Optimistic UI
 }
