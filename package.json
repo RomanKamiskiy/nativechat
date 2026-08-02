@@ -1,0 +1,23 @@
+{
+  "name": "nativechat",
+  "version": "0.0.1",
+  "private": true,
+  "description": "AI-native Headless Chat SDK and Messaging Infrastructure",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

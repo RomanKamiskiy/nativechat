@@ -1,0 +1,16 @@
+{
+  "name": "@nativechat/api",
+  "version": "0.0.1",
+  "private": true,
+  "description": "NativeChat API — REST, WebSockets, and real-time messaging infrastructure",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "echo \"API workspace ready — implement next\"",
+    "build": "echo \"No build yet\"",
+    "lint": "echo \"No lint yet\"",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "@nativechat/shared-types": "*"
+  }
+}
