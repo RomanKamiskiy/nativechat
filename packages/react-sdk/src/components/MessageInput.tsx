@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useChat } from '../hooks/useChat';
 
-interface MessageInputProps {
+export interface MessageInputProps {
   token: string;
   conversationId: string;
 }

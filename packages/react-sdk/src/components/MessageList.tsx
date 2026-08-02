@@ -6,7 +6,7 @@ export const MessageList = () => {
   const typingUsers = useChatStore((state) => state.typingUsers);
 
   return (
-    <div className="nc-message-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', overflowY: 'auto', height: '100%' }}>
+    <div className="nc-message-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', overflowY: 'auto', flex: 1 }}>
       {messages.map((msg) => {
         const isMe = msg.senderId === 'me';
         return (
