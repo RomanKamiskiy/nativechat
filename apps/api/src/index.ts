@@ -124,6 +124,15 @@ fastify.ready((err) => {
             rooms.set(conversationId, new Set());
           }
           rooms.get(conversationId)!.add(ws);
+
+          // Сообщаем всем в комнате, что юзер зашел (Presence)
+          pub.publish('chat_events', JSON.stringify({
+            roomId: currentRoom,
+            payload: {
+              type: 'user_joined',
+              payload: { userId: user.userId, name: user.name }
+            }
+          }));
           
           fastify.log.info(`User ${user.userId} joined room ${conversationId}`);
         }
@@ -156,16 +165,48 @@ fastify.ready((err) => {
             payload: broadcastData
           }));
         }
+
+        // Обработка статуса "печатает..."
+        if (data.type === 'typing_start' && currentRoom) {
+          pub.publish('chat_events', JSON.stringify({
+            roomId: currentRoom,
+            payload: {
+              type: 'typing_start',
+              payload: { userId: user.userId, name: user.name }
+            }
+          }));
+        }
+
+        if (data.type === 'typing_stop' && currentRoom) {
+          pub.publish('chat_events', JSON.stringify({
+            roomId: currentRoom,
+            payload: {
+              type: 'typing_stop',
+              payload: { userId: user.userId, name: user.name }
+            }
+          }));
+        }
       } catch (err) {
         fastify.log.error('WS Error:', err);
       }
     });
 
     ws.on('close', () => {
-      if (currentRoom && rooms.has(currentRoom)) {
-        rooms.get(currentRoom)!.delete(ws);
-        if (rooms.get(currentRoom)!.size === 0) {
-          rooms.delete(currentRoom);
+      if (currentRoom) {
+        // Сообщаем всем в комнате, что юзер вышел
+        pub.publish('chat_events', JSON.stringify({
+          roomId: currentRoom,
+          payload: {
+            type: 'user_left',
+            payload: { userId: user.userId, name: user.name }
+          }
+        }));
+
+        if (rooms.has(currentRoom)) {
+          rooms.get(currentRoom)!.delete(ws);
+          if (rooms.get(currentRoom)!.size === 0) {
+            rooms.delete(currentRoom);
+          }
         }
       }
     });
