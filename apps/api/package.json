@@ -10,6 +10,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "test:agents": "tsx src/agents/service.test.ts",
+    "test:setup": "tsx src/setup/budget.test.ts",
     "test:smoke": "node src/agents/smoke.mjs"
   },
   "devDependencies": {

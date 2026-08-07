@@ -15,20 +15,28 @@ nativechat/
 └── docker-compose.yml
 ```
 
-## BYO Agent (no token tariffs)
+## Token model (setup vs chat)
 
-Heavy chat usage should not force NativeChat into paid token plans.
-Each project picks an agent:
+We do **not** sell chat-token tariffs. Flow:
 
-| Provider | Who pays | How |
+1. **Setup budget** — each project gets a limited grant (default **8000** tokens) only to auto-tune the widget to the product (theme + welcome).
+2. **Estimate** — before tune we calculate how many tokens that product needs.
+3. **Auto-tune once** — spend from the setup budget and apply branding immediately.
+4. **Ongoing chat** — GPT Mini (Free) or the customer's own agent via MCP. Setup tokens are not used for chat.
+
+| Phase | Who pays | Notes |
 |---|---|---|
-| `free_mini` | Platform (lightweight GPT Mini) | Built-in, default |
-| `mcp` | You | Your agent URL via MCP (`tools/call`) |
+| Auto-tune | Platform (limited) | One-shot setup budget |
+| `free_mini` chat | Platform (lightweight) | After setup |
+| `mcp` chat | Customer | BYO agent |
 
-In the widget header: **Agent → GPT Mini (Free)** or **Your Agent (MCP)**.
+Widget: **Автонастройка продукта** → then **Agent → GPT Mini / MCP**.
 
 API:
 
+- `GET /api/projects/:id/setup`
+- `POST /api/projects/:id/setup/estimate` `{ productUrl?, productName? }`
+- `POST /api/projects/:id/setup/auto-tune` `{ productUrl?, productName? }`
 - `GET /api/agents/options`
 - `GET /api/projects/:id/agent`
 - `PUT /api/projects/:id/agent` `{ provider, mcpServerUrl?, mcpToolName?, mcpAuthToken? }`

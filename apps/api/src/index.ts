@@ -8,6 +8,8 @@ import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
 import { generateAgentReply, toPublicAgentConfig } from './agents/service';
 import { getOrCreateAiBot } from './agents/botUser';
+import { estimateAutoTuneTokens, toSetupBudgetSnapshot, DEFAULT_SETUP_TOKEN_BUDGET } from './setup/budget';
+import { publicSetupState, runAutoTune } from './setup/autoTune';
 
 dotenv.config();
 
@@ -36,6 +38,7 @@ fastify.post('/api/auth/token', async (request, reply) => {
         data: {
           name: projectId,
           agentProvider: 'free_mini',
+          setupTokenBudget: DEFAULT_SETUP_TOKEN_BUDGET,
         },
       });
     }
@@ -89,6 +92,7 @@ fastify.post('/api/auth/token', async (request, reply) => {
       userId: user.id,
       projectId: project.id,
       agent: toPublicAgentConfig(project),
+      setup: publicSetupState(project),
     };
   } catch (error) {
     fastify.log.error(error);
@@ -182,18 +186,121 @@ fastify.get('/api/agents/options', async () => {
         label: 'GPT Mini (Free)',
         isFree: true,
         description:
-          'Built-in lightweight model. Platform covers tokens — no tariffs for you.',
+          'После auto-tune — бесплатный чат. Setup-токены на это не тратятся.',
       },
       {
         provider: 'mcp',
         label: 'Your Agent (MCP)',
         isFree: false,
         description:
-          'Plug in your own agent via MCP. You spend your tokens, NativeChat does not.',
+          'После auto-tune подключите своего агента. Чат идёт на ваших токенах.',
       },
     ],
   };
 });
+
+// --- Limited setup tokens + product auto-tune ---
+
+fastify.get('/api/projects/:id/setup', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  try {
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project) return reply.status(404).send({ error: 'Project not found' });
+    return { setup: publicSetupState(project) };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Failed to fetch setup budget' });
+  }
+});
+
+fastify.post('/api/projects/:id/setup/estimate', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  const body = (request.body || {}) as {
+    productUrl?: string;
+    productName?: string;
+    pageChars?: number;
+  };
+
+  try {
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project) return reply.status(404).send({ error: 'Project not found' });
+
+    const estimate = estimateAutoTuneTokens({
+      productUrl: body.productUrl ?? project.productUrl,
+      productName: body.productName ?? project.productName,
+      pageChars: body.pageChars,
+    });
+
+    return {
+      estimate,
+      setup: toSetupBudgetSnapshot(project, {
+        productUrl: body.productUrl ?? project.productUrl,
+        productName: body.productName ?? project.productName,
+        pageChars: body.pageChars,
+      }),
+    };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Failed to estimate setup tokens' });
+  }
+});
+
+fastify.post('/api/projects/:id/setup/auto-tune', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  const body = (request.body || {}) as {
+    productUrl?: string;
+    productName?: string;
+  };
+
+  try {
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project) return reply.status(404).send({ error: 'Project not found' });
+
+    const result = await runAutoTune({
+      productUrl: body.productUrl ?? project.productUrl,
+      productName: body.productName ?? project.productName,
+      setupTokenBudget: project.setupTokenBudget,
+      setupTokensUsed: project.setupTokensUsed,
+      setupCompletedAt: project.setupCompletedAt,
+    });
+
+    if (!result.ok) {
+      const status = result.code === 'insufficient_setup_tokens' ? 402 : 400;
+      return reply.status(status).send(result);
+    }
+
+    const updated = await prisma.project.update({
+      where: { id },
+      data: {
+        productUrl: result.productUrl,
+        productName: result.productName,
+        themeTokens: result.themeTokens as object,
+        welcomeMessage: result.welcomeMessage,
+        setupTokensUsed: { increment: result.tokensCharged },
+        setupCompletedAt: new Date(),
+        // After tune, default ongoing chat to free mini (MCP optional next)
+        agentProvider: project.agentProvider || 'free_mini',
+      },
+    });
+
+    return {
+      ok: true,
+      tokensCharged: result.tokensCharged,
+      estimate: result.estimate,
+      setup: publicSetupState(updated),
+      agent: toPublicAgentConfig(updated),
+      nextStep: {
+        message:
+          'Автонастройка готова. Дальше используйте GPT Mini (Free) или подключите своего агента через MCP.',
+        agents: ['free_mini', 'mcp'],
+      },
+    };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Auto-tune failed' });
+  }
+});
+
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const pub = new Redis(REDIS_URL);

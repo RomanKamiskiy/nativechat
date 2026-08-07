@@ -33,12 +33,44 @@ export const AGENT_PROVIDER_META: Record<
     label: 'GPT Mini (Free)',
     isFree: true,
     description:
-      'Built-in lightweight model. No tariffs on your side — platform covers tokens.',
+      'Built-in lightweight model for ongoing chat after setup. No setup-token spend.',
   },
   mcp: {
     label: 'Your Agent (MCP)',
     isFree: false,
     description:
-      'Bring your own agent via MCP. You pay for your own tokens — NativeChat does not.',
+      'Bring your own agent via MCP after auto-tune. You pay for your own chat tokens.',
   },
 };
+
+/** Design tokens produced by product auto-tune. */
+export interface ThemeTokens {
+  brandName: string;
+  primary: string;
+  background: string;
+  surface: string;
+  text: string;
+  mutedText: string;
+  border: string;
+  radius: string;
+  fontFamily: string;
+  userBubble: string;
+  agentBubble: string;
+}
+
+/**
+ * Limited platform tokens for one-shot product auto-tune only.
+ * Chat after setup uses free_mini or MCP — not this budget.
+ */
+export interface SetupBudgetPublic {
+  budget: number;
+  used: number;
+  remaining: number;
+  completed: boolean;
+  estimateForTune: number;
+  canAutoTune: boolean;
+  productUrl?: string | null;
+  productName?: string | null;
+  themeTokens?: ThemeTokens | null;
+  welcomeMessage?: string | null;
+}

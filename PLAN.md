@@ -53,12 +53,14 @@
 - [ ] **Feature 4.1: DOM Parser Engine**
   - [ ] Write script (Puppeteer/Cheerio) to parse CSS/DOM via URL.
   - [ ] Extract colors, fonts, border-radius, and shadows.
-- [ ] **Feature 4.2: LLM Processor**
-  - [ ] Design system prompt for OpenAI/Claude.
-  - [ ] Create endpoint to convert raw CSS data into a strict JSON design-token format.
-- [ ] **Feature 4.3: Theme Injector**
-  - [ ] Add theme parser to React SDK.
-  - [ ] Map JSON tokens to CSS variables inside SDK components.
+- [x] **Feature 4.2: Limited setup-token auto-tune (MVP)**
+  - [x] Grant a fixed setup token budget per project (default 8000).
+  - [x] Estimate tokens needed to auto-tune the product.
+  - [x] One-shot auto-tune → theme tokens + welcome message.
+  - [x] After tune: ongoing chat uses free_mini or MCP (not setup budget).
+- [x] **Feature 4.3: Theme Injector (MVP)**
+  - [x] Map theme JSON to CSS variables inside SDK components.
+  - [ ] Richer DOM/CSS parser (Puppeteer/Cheerio) later.
 
 ## Epic 5: Developer Console & PLG Landing
 **Goal:** Client-facing web interfaces (Marketing + Dashboard).
@@ -91,7 +93,11 @@ Instead of inventing tariff tiers, let the installer pick an agent.
 - [x] **Feature 6.4: Chat UI agent selector**
   - [x] `<AgentSelector/>` in `ChatWidget` header
   - [x] Switch Free Mini ↔ MCP, configure MCP URL/tool/token
-- [ ] **Feature 6.5: Hardening (later)**
+- [x] **Feature 6.5: Setup budget → then free/MCP**
+  - [x] Limited setup tokens only for product auto-tune
+  - [x] Estimate endpoint before charging
+  - [x] UI: SetupPanel → AgentSelector handoff
+- [ ] **Feature 6.6: Hardening (later)**
   - [ ] Encrypt `mcpAuthToken` at rest
   - [ ] Per-project rate limits only as abuse protection (not monetization)
   - [ ] MCP OAuth / session refresh

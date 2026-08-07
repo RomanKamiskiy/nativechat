@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
-import { ChatWidget, type AgentConfigPublic } from '@nativechat/react-sdk';
+import {
+  ChatWidget,
+  type AgentConfigPublic,
+  type SetupBudgetPublic,
+} from '@nativechat/react-sdk';
 
 type Session = {
   token: string;
   conversationId: string;
   projectId: string;
   agent: AgentConfigPublic;
+  setup: SetupBudgetPublic;
 };
 
 function App() {
@@ -29,6 +34,7 @@ function App() {
             conversationId: data.conversationId,
             projectId: data.projectId,
             agent: data.agent,
+            setup: data.setup,
           });
         }
       })
@@ -41,27 +47,48 @@ function App() {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        height: '100vh',
-        backgroundColor: '#f0f2f5',
-        fontFamily: 'sans-serif',
+        minHeight: '100vh',
+        backgroundColor: session?.setup?.themeTokens?.background || '#f0f2f5',
+        fontFamily: session?.setup?.themeTokens?.fontFamily || 'sans-serif',
+        padding: 16,
+        boxSizing: 'border-box',
       }}
     >
-      <div style={{ width: '100%', maxWidth: '420px', height: '640px' }}>
-        <h2 style={{ textAlign: 'center', color: '#333', marginBottom: '8px' }}>NativeChat Demo</h2>
-        <p style={{ textAlign: 'center', color: '#666', fontSize: 13, marginTop: 0, marginBottom: 16 }}>
-          GPT Mini бесплатно или свой агент через MCP — без тарифов на токены
+      <div style={{ width: '100%', maxWidth: '420px', height: '720px' }}>
+        <h2
+          style={{
+            textAlign: 'center',
+            color: session?.setup?.themeTokens?.text || '#333',
+            marginBottom: '8px',
+          }}
+        >
+          {session?.setup?.themeTokens?.brandName || 'NativeChat'} Demo
+        </h2>
+        <p
+          style={{
+            textAlign: 'center',
+            color: '#666',
+            fontSize: 13,
+            marginTop: 0,
+            marginBottom: 16,
+            lineHeight: 1.4,
+          }}
+        >
+          Сначала ограниченный бюджет на автонастройку продукта.
+          <br />
+          Потом GPT Mini (Free) или свой агент через MCP.
         </p>
         {session ? (
           <ChatWidget
             conversationId={session.conversationId}
             projectId={session.projectId}
             agent={session.agent}
+            setup={session.setup}
             height="100%"
             token={session.token}
             onAction={(action) => alert('Экшен вызван: ' + JSON.stringify(action))}
-            onAgentChange={(agent) =>
-              setSession((s) => (s ? { ...s, agent } : s))
-            }
+            onAgentChange={(agent) => setSession((s) => (s ? { ...s, agent } : s))}
+            onSetupComplete={(setup) => setSession((s) => (s ? { ...s, setup } : s))}
           />
         ) : (
           <p style={{ textAlign: 'center', color: '#888' }}>Подключение к серверу...</p>

@@ -20,6 +20,16 @@ model Project {
   /// Optional bearer token for the customer's MCP agent (stored server-side only)
   mcpAuthToken  String?
 
+  /// Limited platform tokens ONLY for one-shot product auto-tune (not chat)
+  setupTokenBudget Int         @default(8000)
+  setupTokensUsed  Int         @default(0)
+  setupCompletedAt DateTime?
+  productUrl       String?
+  productName      String?
+  /// Design tokens produced by auto-tune (colors, radius, fonts…)
+  themeTokens      Json?
+  welcomeMessage   String?     @db.Text
+
   users         User[]
   conversations Conversation[]
 }
