@@ -71,3 +71,27 @@
   - [ ] Build dashboard (Auth, Projects list).
   - [ ] Implement API Key generation (Public/Secret).
   - [ ] Display basic usage statistics (MAU, Messages count).
+
+## Epic 6: BYO Agent (Free Mini + MCP) — avoid token tariffs
+**Goal:** Chat AI without forcing NativeChat into per-token plans/limits.
+When a site installs the chat, heavy AI usage must not burn platform tokens.
+Instead of inventing tariff tiers, let the installer pick an agent.
+
+- [x] **Feature 6.1: Agent provider model**
+  - [x] `Project.agentProvider`: `free_mini` | `mcp`
+  - [x] Store MCP server URL, tool name, optional auth token server-side
+  - [x] Public agent config API (no secrets leaked)
+- [x] **Feature 6.2: Free GPT Mini**
+  - [x] Built-in lightweight reply path (`gpt-4o-mini` when `OPENAI_API_KEY` is set)
+  - [x] Demo fallback when no platform key is configured
+- [x] **Feature 6.3: Custom agent via MCP**
+  - [x] Minimal Streamable HTTP / JSON-RPC MCP client
+  - [x] `tools/list` + `tools/call` with message payload
+  - [x] Auto-pick a chat-like tool if configured name is missing
+- [x] **Feature 6.4: Chat UI agent selector**
+  - [x] `<AgentSelector/>` in `ChatWidget` header
+  - [x] Switch Free Mini ↔ MCP, configure MCP URL/tool/token
+- [ ] **Feature 6.5: Hardening (later)**
+  - [ ] Encrypt `mcpAuthToken` at rest
+  - [ ] Per-project rate limits only as abuse protection (not monetization)
+  - [ ] MCP OAuth / session refresh
