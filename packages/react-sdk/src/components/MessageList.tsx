@@ -30,12 +30,12 @@ export const MessageList = ({ onAction }: MessageListProps) => {
         return (
           <div key={msg.id} className={`nc-message ${isMe ? 'nc-message-out' : 'nc-message-in'}`} style={{
             alignSelf: isMe ? 'flex-end' : 'flex-start',
-            backgroundColor: isMe ? '#007aff' : '#f1f1f0',
-            color: isMe ? 'white' : 'black',
+            backgroundColor: isMe ? 'var(--nc-user-bubble, #007aff)' : 'var(--nc-agent-bubble, #f1f1f0)',
+            color: isMe ? 'white' : 'var(--nc-text, black)',
             padding: '8px 12px',
-            borderRadius: '12px',
+            borderRadius: 'var(--nc-radius, 12px)',
             maxWidth: '80%',
-            fontFamily: 'sans-serif',
+            fontFamily: 'var(--nc-font, sans-serif)',
             fontSize: '14px'
           }}>
             <div className="nc-message-content">{msg.content}</div>

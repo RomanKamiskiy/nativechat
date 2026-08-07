@@ -53,12 +53,14 @@
 - [ ] **Feature 4.1: DOM Parser Engine**
   - [ ] Write script (Puppeteer/Cheerio) to parse CSS/DOM via URL.
   - [ ] Extract colors, fonts, border-radius, and shadows.
-- [ ] **Feature 4.2: LLM Processor**
-  - [ ] Design system prompt for OpenAI/Claude.
-  - [ ] Create endpoint to convert raw CSS data into a strict JSON design-token format.
-- [ ] **Feature 4.3: Theme Injector**
-  - [ ] Add theme parser to React SDK.
-  - [ ] Map JSON tokens to CSS variables inside SDK components.
+- [x] **Feature 4.2: Limited setup-token auto-tune (MVP)**
+  - [x] Grant a fixed setup token budget per project (default 8000).
+  - [x] Estimate tokens needed to auto-tune the product.
+  - [x] One-shot auto-tune → theme tokens + welcome message.
+  - [x] After tune: ongoing chat uses free_mini or MCP (not setup budget).
+- [x] **Feature 4.3: Theme Injector (MVP)**
+  - [x] Map theme JSON to CSS variables inside SDK components.
+  - [ ] Richer DOM/CSS parser (Puppeteer/Cheerio) later.
 
 ## Epic 5: Developer Console & PLG Landing
 **Goal:** Client-facing web interfaces (Marketing + Dashboard).
@@ -71,3 +73,31 @@
   - [ ] Build dashboard (Auth, Projects list).
   - [ ] Implement API Key generation (Public/Secret).
   - [ ] Display basic usage statistics (MAU, Messages count).
+
+## Epic 6: BYO Agent (Free Mini + MCP) — avoid token tariffs
+**Goal:** Chat AI without forcing NativeChat into per-token plans/limits.
+When a site installs the chat, heavy AI usage must not burn platform tokens.
+Instead of inventing tariff tiers, let the installer pick an agent.
+
+- [x] **Feature 6.1: Agent provider model**
+  - [x] `Project.agentProvider`: `free_mini` | `mcp`
+  - [x] Store MCP server URL, tool name, optional auth token server-side
+  - [x] Public agent config API (no secrets leaked)
+- [x] **Feature 6.2: Free GPT Mini**
+  - [x] Built-in lightweight reply path (`gpt-4o-mini` when `OPENAI_API_KEY` is set)
+  - [x] Demo fallback when no platform key is configured
+- [x] **Feature 6.3: Custom agent via MCP**
+  - [x] Minimal Streamable HTTP / JSON-RPC MCP client
+  - [x] `tools/list` + `tools/call` with message payload
+  - [x] Auto-pick a chat-like tool if configured name is missing
+- [x] **Feature 6.4: Chat UI agent selector**
+  - [x] `<AgentSelector/>` in `ChatWidget` header
+  - [x] Switch Free Mini ↔ MCP, configure MCP URL/tool/token
+- [x] **Feature 6.5: Setup budget → then free/MCP**
+  - [x] Limited setup tokens only for product auto-tune
+  - [x] Estimate endpoint before charging
+  - [x] UI: SetupPanel → AgentSelector handoff
+- [ ] **Feature 6.6: Hardening (later)**
+  - [ ] Encrypt `mcpAuthToken` at rest
+  - [ ] Per-project rate limits only as abuse protection (not monetization)
+  - [ ] MCP OAuth / session refresh

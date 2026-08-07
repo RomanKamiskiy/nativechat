@@ -6,17 +6,19 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
+import { generateAgentReply, toPublicAgentConfig } from './agents/service';
+import { getOrCreateAiBot } from './agents/botUser';
+import { estimateAutoTuneTokens, toSetupBudgetSnapshot, DEFAULT_SETUP_TOKEN_BUDGET } from './setup/budget';
+import { publicSetupState, runAutoTune } from './setup/autoTune';
 
 dotenv.config();
 
 const prisma = new PrismaClient();
 const fastify = Fastify({ logger: true });
 
-// Регистрация плагинов
-fastify.register(cors, { origin: '*' }); // Для MVP разрешаем всё
+fastify.register(cors, { origin: '*' });
 fastify.register(jwt, { secret: process.env.JWT_SECRET || 'super-secret-nativechat-key' });
 
-// Тестовый роут для проверки работоспособности
 fastify.get('/health', async () => {
   return { status: 'ok', service: 'NativeChat API' };
 });
@@ -30,10 +32,15 @@ fastify.post('/api/auth/token', async (request, reply) => {
   }
 
   try {
-    // Создаём/находим проект, юзера и conversation с реальными UUID для FK
     let project = await prisma.project.findFirst({ where: { name: projectId } });
     if (!project) {
-      project = await prisma.project.create({ data: { name: projectId } });
+      project = await prisma.project.create({
+        data: {
+          name: projectId,
+          agentProvider: 'free_mini',
+          setupTokenBudget: DEFAULT_SETUP_TOKEN_BUDGET,
+        },
+      });
     }
 
     let user = await prisma.user.findUnique({
@@ -70,6 +77,9 @@ fastify.post('/api/auth/token', async (request, reply) => {
       });
     }
 
+    // Ensure AI bot user exists for this project
+    await getOrCreateAiBot(prisma, project.id);
+
     const token = fastify.jwt.sign({
       projectId: project.id,
       userId: user.id,
@@ -80,6 +90,9 @@ fastify.post('/api/auth/token', async (request, reply) => {
       token,
       conversationId: conversation.id,
       userId: user.id,
+      projectId: project.id,
+      agent: toPublicAgentConfig(project),
+      setup: publicSetupState(project),
     };
   } catch (error) {
     fastify.log.error(error);
@@ -95,7 +108,7 @@ fastify.get('/api/conversations/:id/messages', async (request, reply) => {
     const messages = await prisma.message.findMany({
       where: { conversationId: id },
       orderBy: { createdAt: 'asc' },
-      include: { sender: { select: { id: true, name: true, avatarUrl: true } } }
+      include: { sender: { select: { id: true, name: true, avatarUrl: true } } },
     });
     return { messages };
   } catch (error) {
@@ -104,20 +117,202 @@ fastify.get('/api/conversations/:id/messages', async (request, reply) => {
   }
 });
 
+// --- BYO Agent config ---
+
+fastify.get('/api/projects/:id/agent', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  try {
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project) return reply.status(404).send({ error: 'Project not found' });
+    return { agent: toPublicAgentConfig(project) };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Failed to fetch agent config' });
+  }
+});
+
+fastify.put('/api/projects/:id/agent', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  const body = request.body as {
+    provider?: string;
+    mcpServerUrl?: string | null;
+    mcpToolName?: string | null;
+    mcpAuthToken?: string | null;
+  };
+
+  if (!body.provider || !['free_mini', 'mcp'].includes(body.provider)) {
+    return reply.status(400).send({ error: 'provider must be free_mini or mcp' });
+  }
+
+  if (body.provider === 'mcp' && !body.mcpServerUrl) {
+    return reply.status(400).send({ error: 'mcpServerUrl is required for mcp provider' });
+  }
+
+  try {
+    const data: Record<string, unknown> = {
+      agentProvider: body.provider,
+    };
+
+    if (body.provider === 'mcp') {
+      data.mcpServerUrl = body.mcpServerUrl;
+      if (body.mcpToolName !== undefined) {
+        data.mcpToolName = body.mcpToolName || 'chat';
+      }
+      if (body.mcpAuthToken !== undefined) {
+        data.mcpAuthToken = body.mcpAuthToken; // null clears
+      }
+    } else {
+      // Switching back to free mini — keep MCP fields stored but unused
+    }
+
+    const project = await prisma.project.update({
+      where: { id },
+      data,
+    });
+
+    return { agent: toPublicAgentConfig(project) };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Failed to update agent config' });
+  }
+});
+
+/** Available agent options for the selector UI */
+fastify.get('/api/agents/options', async () => {
+  return {
+    options: [
+      {
+        provider: 'free_mini',
+        label: 'GPT Mini (Free)',
+        isFree: true,
+        description:
+          'После auto-tune — бесплатный чат. Setup-токены на это не тратятся.',
+      },
+      {
+        provider: 'mcp',
+        label: 'Your Agent (MCP)',
+        isFree: false,
+        description:
+          'После auto-tune подключите своего агента. Чат идёт на ваших токенах.',
+      },
+    ],
+  };
+});
+
+// --- Limited setup tokens + product auto-tune ---
+
+fastify.get('/api/projects/:id/setup', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  try {
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project) return reply.status(404).send({ error: 'Project not found' });
+    return { setup: publicSetupState(project) };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Failed to fetch setup budget' });
+  }
+});
+
+fastify.post('/api/projects/:id/setup/estimate', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  const body = (request.body || {}) as {
+    productUrl?: string;
+    productName?: string;
+    pageChars?: number;
+  };
+
+  try {
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project) return reply.status(404).send({ error: 'Project not found' });
+
+    const estimate = estimateAutoTuneTokens({
+      productUrl: body.productUrl ?? project.productUrl,
+      productName: body.productName ?? project.productName,
+      pageChars: body.pageChars,
+    });
+
+    return {
+      estimate,
+      setup: toSetupBudgetSnapshot(project, {
+        productUrl: body.productUrl ?? project.productUrl,
+        productName: body.productName ?? project.productName,
+        pageChars: body.pageChars,
+      }),
+    };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Failed to estimate setup tokens' });
+  }
+});
+
+fastify.post('/api/projects/:id/setup/auto-tune', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  const body = (request.body || {}) as {
+    productUrl?: string;
+    productName?: string;
+  };
+
+  try {
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project) return reply.status(404).send({ error: 'Project not found' });
+
+    const result = await runAutoTune({
+      productUrl: body.productUrl ?? project.productUrl,
+      productName: body.productName ?? project.productName,
+      setupTokenBudget: project.setupTokenBudget,
+      setupTokensUsed: project.setupTokensUsed,
+      setupCompletedAt: project.setupCompletedAt,
+    });
+
+    if (!result.ok) {
+      const status = result.code === 'insufficient_setup_tokens' ? 402 : 400;
+      return reply.status(status).send(result);
+    }
+
+    const updated = await prisma.project.update({
+      where: { id },
+      data: {
+        productUrl: result.productUrl,
+        productName: result.productName,
+        themeTokens: result.themeTokens as object,
+        welcomeMessage: result.welcomeMessage,
+        setupTokensUsed: { increment: result.tokensCharged },
+        setupCompletedAt: new Date(),
+        // After tune, default ongoing chat to free mini (MCP optional next)
+        agentProvider: project.agentProvider || 'free_mini',
+      },
+    });
+
+    return {
+      ok: true,
+      tokensCharged: result.tokensCharged,
+      estimate: result.estimate,
+      setup: publicSetupState(updated),
+      agent: toPublicAgentConfig(updated),
+      nextStep: {
+        message:
+          'Автонастройка готова. Дальше используйте GPT Mini (Free) или подключите своего агента через MCP.',
+        agents: ['free_mini', 'mcp'],
+      },
+    };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Auto-tune failed' });
+  }
+});
+
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const pub = new Redis(REDIS_URL);
 const sub = new Redis(REDIS_URL);
 
-// Подписываемся на канал сообщений чата
 sub.subscribe('chat_events');
 
 sub.on('message', (channel, message) => {
   if (channel === 'chat_events') {
     const data = JSON.parse(message);
     const { roomId, payload } = data;
-    
-    // Рассылаем локально подключенным клиентам в этой комнате
+
     const roomClients = rooms.get(roomId);
     if (roomClients) {
       const broadcastData = JSON.stringify(payload);
@@ -130,8 +325,86 @@ sub.on('message', (channel, message) => {
   }
 });
 
-// Хранилище подключений (RoomID -> Set of WebSockets)
 const rooms = new Map<string, Set<WebSocket>>();
+
+async function publishEvent(roomId: string, payload: unknown) {
+  await pub.publish(
+    'chat_events',
+    JSON.stringify({
+      roomId,
+      payload,
+    })
+  );
+}
+
+async function replyWithAgent(conversationId: string, userText: string) {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: { project: true },
+  });
+  if (!conversation) return;
+
+  const bot = await getOrCreateAiBot(prisma, conversation.projectId);
+
+  // Presence: agent is "typing"
+  await publishEvent(conversationId, {
+    type: 'typing_start',
+    payload: { userId: bot.id, name: bot.name },
+  });
+
+  try {
+    const recent = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      take: 12,
+      include: { sender: { select: { externalId: true } } },
+    });
+
+    const history = recent
+      .reverse()
+      .map((m) => ({
+        role: m.sender.externalId === '__nativechat_ai_bot__' ? 'assistant' : 'user',
+        content: m.content,
+      }))
+      .filter((m) => m.content && m.content !== userText);
+
+    const reply = await generateAgentReply({
+      project: conversation.project,
+      userMessage: userText,
+      conversationId,
+      history,
+    });
+
+    const saved = await prisma.message.create({
+      data: {
+        content: reply.content,
+        senderId: bot.id,
+        conversationId,
+        type: 'text',
+        metadata: {
+          agentProvider: reply.provider,
+          model: reply.model ?? null,
+          error: reply.error ?? null,
+        },
+      },
+      include: {
+        sender: { select: { id: true, name: true, avatarUrl: true } },
+      },
+    });
+
+    await publishEvent(conversationId, {
+      type: 'new_message',
+      payload: saved,
+    });
+  } catch (err) {
+    fastify.log.error({ err }, 'Agent reply failed');
+  } finally {
+    await publishEvent(conversationId, {
+      type: 'typing_stop',
+      payload: { userId: bot.id, name: bot.name },
+    });
+  }
+}
 
 fastify.ready((err) => {
   if (err) throw err;
@@ -139,7 +412,6 @@ fastify.ready((err) => {
   const wss = new WebSocketServer({ server: fastify.server });
 
   wss.on('connection', (ws: WebSocket, req) => {
-    // 1. Простая аутентификация через query-параметр ?token=...
     const { query } = parse(req.url || '', true);
     const token = query.token as string;
 
@@ -162,7 +434,6 @@ fastify.ready((err) => {
       try {
         const data = JSON.parse(rawMessage.toString());
 
-        // Обработка входа в чат
         if (data.type === 'join_room') {
           const { conversationId } = data.payload;
           currentRoom = conversationId;
@@ -172,19 +443,14 @@ fastify.ready((err) => {
           }
           rooms.get(conversationId)!.add(ws);
 
-          // Сообщаем всем в комнате, что юзер зашел (Presence)
-          pub.publish('chat_events', JSON.stringify({
-            roomId: currentRoom,
-            payload: {
-              type: 'user_joined',
-              payload: { userId: user.userId, name: user.name }
-            }
-          }));
-          
+          await publishEvent(currentRoom!, {
+            type: 'user_joined',
+            payload: { userId: user.userId, name: user.name },
+          });
+
           fastify.log.info(`User ${user.userId} joined room ${conversationId}`);
         }
 
-        // Обработка нового сообщения
         if (data.type === 'send_message' && currentRoom) {
           const { content } = data.payload;
 
@@ -197,55 +463,52 @@ fastify.ready((err) => {
             messageMetadata = {
               title: 'NativeChat Pro',
               price: 99,
-              features: ['Безлимит чатов', 'AI Ассистент', 'Custom UI Карточки']
+              features: ['Безлимит чатов', 'AI Ассистент', 'Custom UI Карточки'],
             };
           }
 
-          // 1. Сохраняем в БД
           const savedMessage = await prisma.message.create({
             data: {
               content: content.trim() === '/pricing' ? 'Тарифные планы' : content,
               senderId: user.userId,
               conversationId: currentRoom,
               type: messageType,
-              metadata: messageMetadata || undefined
+              metadata: messageMetadata || undefined,
             },
             include: {
-              sender: { select: { id: true, name: true, avatarUrl: true } }
-            }
+              sender: { select: { id: true, name: true, avatarUrl: true } },
+            },
           });
 
-          // 2. Публикуем событие в Redis вместо прямой рассылки
-          const broadcastData = {
+          await publishEvent(currentRoom, {
             type: 'new_message',
-            payload: savedMessage
-          };
-          
-          pub.publish('chat_events', JSON.stringify({
-            roomId: currentRoom,
-            payload: broadcastData
-          }));
+            payload: savedMessage,
+          });
+
+          // Kick off BYO-agent reply (free mini or customer's MCP agent)
+          // Skip for pure UI demo commands
+          if (content.trim() !== '/pricing') {
+            const roomId = currentRoom;
+            setImmediate(() => {
+              replyWithAgent(roomId, content.trim()).catch((e) =>
+                fastify.log.error({ e }, 'replyWithAgent')
+              );
+            });
+          }
         }
 
-        // Обработка статуса "печатает..."
         if (data.type === 'typing_start' && currentRoom) {
-          pub.publish('chat_events', JSON.stringify({
-            roomId: currentRoom,
-            payload: {
-              type: 'typing_start',
-              payload: { userId: user.userId, name: user.name }
-            }
-          }));
+          await publishEvent(currentRoom, {
+            type: 'typing_start',
+            payload: { userId: user.userId, name: user.name },
+          });
         }
 
         if (data.type === 'typing_stop' && currentRoom) {
-          pub.publish('chat_events', JSON.stringify({
-            roomId: currentRoom,
-            payload: {
-              type: 'typing_stop',
-              payload: { userId: user.userId, name: user.name }
-            }
-          }));
+          await publishEvent(currentRoom, {
+            type: 'typing_stop',
+            payload: { userId: user.userId, name: user.name },
+          });
         }
       } catch (err) {
         fastify.log.error({ err }, 'WS Error');
@@ -254,14 +517,10 @@ fastify.ready((err) => {
 
     ws.on('close', () => {
       if (currentRoom) {
-        // Сообщаем всем в комнате, что юзер вышел
-        pub.publish('chat_events', JSON.stringify({
-          roomId: currentRoom,
-          payload: {
-            type: 'user_left',
-            payload: { userId: user.userId, name: user.name }
-          }
-        }));
+        publishEvent(currentRoom, {
+          type: 'user_left',
+          payload: { userId: user.userId, name: user.name },
+        }).catch(() => {});
 
         if (rooms.has(currentRoom)) {
           rooms.get(currentRoom)!.delete(ws);
