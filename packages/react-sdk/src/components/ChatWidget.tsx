@@ -17,6 +17,7 @@ export interface ChatWidgetProps {
   /** Setup-token budget + auto-tune state */
   setup?: SetupBudgetPublic | null;
   apiUrl?: string;
+  wsUrl?: string;
   width?: string | number;
   height?: string | number;
   /** Show one-shot product auto-tune (spends limited setup tokens) */
@@ -35,6 +36,7 @@ export const ChatWidget = ({
   agent: initialAgent = null,
   setup: initialSetup = null,
   apiUrl = 'http://localhost:3001',
+  wsUrl,
   width = '100%',
   height = '500px',
   showSetupPanel = true,
@@ -43,7 +45,12 @@ export const ChatWidget = ({
   onAgentChange,
   onSetupComplete,
 }: ChatWidgetProps) => {
-  const { sendMessage, startTyping, stopTyping } = useChat({ token, conversationId, apiUrl });
+  const { sendMessage, startTyping, stopTyping } = useChat({
+    token,
+    conversationId,
+    apiUrl,
+    wsUrl,
+  });
   const [agent, setAgent] = useState<AgentConfigPublic | null>(initialAgent);
   const [setup, setSetup] = useState<SetupBudgetPublic | null>(initialSetup);
   const theme: ThemeTokens = setup?.themeTokens || DEFAULT_THEME;

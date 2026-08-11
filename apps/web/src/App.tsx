@@ -4,6 +4,7 @@ import {
   type AgentConfigPublic,
   type SetupBudgetPublic,
 } from '@nativechat/react-sdk';
+import { getDemoApiUrl, getDemoWsUrl } from './demoApi';
 
 type Session = {
   token: string;
@@ -15,9 +16,11 @@ type Session = {
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
+  const apiUrl = getDemoApiUrl();
+  const wsUrl = getDemoWsUrl();
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/auth/token', {
+    fetch(`${apiUrl}/api/auth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -39,7 +42,7 @@ function App() {
         }
       })
       .catch(console.error);
-  }, []);
+  }, [apiUrl]);
 
   return (
     <div
@@ -84,6 +87,8 @@ function App() {
             projectId={session.projectId}
             agent={session.agent}
             setup={session.setup}
+            apiUrl={apiUrl}
+            wsUrl={wsUrl}
             height="100%"
             token={session.token}
             onAction={(action) => alert('Экшен вызван: ' + JSON.stringify(action))}
