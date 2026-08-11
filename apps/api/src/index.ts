@@ -100,6 +100,21 @@ fastify.post('/api/auth/token', async (request, reply) => {
   }
 });
 
+// Получение списка всех диалогов
+fastify.get('/api/conversations', async () => {
+  const conversations = await prisma.conversation.findMany({
+    orderBy: { updatedAt: 'desc' },
+    // Для демо берем последнее сообщение как превью
+    include: {
+      messages: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+  return { conversations };
+});
+
 // Получение истории сообщений
 fastify.get('/api/conversations/:id/messages', async (request, reply) => {
   const { id } = request.params as { id: string };
