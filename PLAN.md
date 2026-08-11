@@ -111,7 +111,11 @@ Instead of inventing tariff tiers, let the installer pick an agent.
   - [x] Sidebar layout: Inbox / Users / AI / Settings
   - [x] Mock inbox + RAG stub screens
   - [x] Root script `dev:dashboard` → http://localhost:5174
-- [ ] **Feature 7.2: Bind to real backend**
-  - [ ] Live conversations from API/WS
-  - [ ] Project agent + setup budget controls
-  - [ ] Operator reply into conversations
+- [x] **Feature 7.2: Bind to real backend (Inbox)**
+  - [x] Live conversations from API
+  - [x] User.role: user | admin | bot
+  - [x] Operator reply via `POST /api/conversations/:id/messages` → Redis → widget
+- [ ] **Feature 7.3: Next**
+  - [ ] Project agent + setup budget controls in Settings
+  - [ ] Users list
+  - [ ] Operator auth (not demo Admin Support)

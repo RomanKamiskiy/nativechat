@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { MessageSquare, Settings, Users, Zap } from 'lucide-react';
 import { useDashboardStore } from './store';
 
 function App() {
   const [activeTab, setActiveTab] = useState('inbox');
+  const [inputText, setInputText] = useState('');
   const {
     conversations,
     activeConversationId,
@@ -11,6 +12,7 @@ function App() {
     setConversations,
     setActiveConversation,
     setMessages,
+    appendMessage,
   } = useDashboardStore();
 
   useEffect(() => {
@@ -24,10 +26,42 @@ function App() {
 
   const handleSelectConversation = (id: string) => {
     setActiveConversation(id);
+    setInputText('');
     fetch(`http://localhost:3001/api/conversations/${id}/messages`)
       .then((res) => res.json())
       .then((data) => setMessages(data.messages || []))
       .catch(console.error);
+  };
+
+  const handleSendMessage = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim() || !activeConversationId) return;
+
+    const textToSend = inputText.trim();
+    setInputText('');
+
+    try {
+      const res = await fetch(
+        `http://localhost:3001/api/conversations/${activeConversationId}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: textToSend }),
+        }
+      );
+      const data = await res.json();
+
+      if (data.message) {
+        appendMessage(data.message);
+        // refresh list preview
+        fetch('http://localhost:3001/api/conversations')
+          .then((r) => r.json())
+          .then((d) => setConversations(d.conversations || []))
+          .catch(console.error);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
@@ -101,25 +135,49 @@ function App() {
                   </div>
                 ))}
               </div>
-              <div className="flex-1 flex flex-col bg-slate-50">
+              <div className="flex-1 flex flex-col bg-slate-50 h-full overflow-hidden">
                 {activeConversationId ? (
-                  <div className="p-6 flex-1 overflow-y-auto flex flex-col gap-4">
-                    {messages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`p-3 rounded-xl max-w-[80%] text-sm ${
-                          msg.sender?.name === 'AI Agent'
-                            ? 'bg-white border border-slate-200 self-start'
-                            : 'bg-blue-600 text-white self-end'
-                        }`}
-                      >
-                        {msg.sender?.name && (
-                          <div className="text-[10px] opacity-70 mb-1">{msg.sender.name}</div>
-                        )}
-                        {msg.content}
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <div className="p-6 flex-1 overflow-y-auto flex flex-col gap-4">
+                      {messages.map((msg) => {
+                        const isAdmin =
+                          msg.sender?.role === 'admin' || msg.sender?.name === 'Admin Support';
+                        return (
+                          <div
+                            key={msg.id}
+                            className={`p-3 rounded-xl max-w-[80%] text-sm ${
+                              isAdmin
+                                ? 'bg-blue-600 text-white self-end'
+                                : 'bg-white border border-slate-200 self-start'
+                            }`}
+                          >
+                            {msg.sender?.name && (
+                              <div className="text-[10px] opacity-70 mb-1">{msg.sender.name}</div>
+                            )}
+                            {msg.content}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="p-4 bg-white border-t border-slate-200">
+                      <form onSubmit={handleSendMessage} className="flex gap-2">
+                        <input
+                          type="text"
+                          value={inputText}
+                          onChange={(e) => setInputText(e.target.value)}
+                          placeholder="Напишите ответ..."
+                          className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
+                        >
+                          Отправить
+                        </button>
+                      </form>
+                    </div>
+                  </>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-slate-400">
                     Выберите диалог для ответа

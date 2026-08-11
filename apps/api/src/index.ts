@@ -67,9 +67,10 @@ fastify.post('/api/auth/token', async (request, reply) => {
       });
     }
 
+    // Prefer the most recently active room so widget + dashboard stay in sync
     let conversation = await prisma.conversation.findFirst({
       where: { projectId: project.id },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { updatedAt: 'desc' },
     });
     if (!conversation) {
       conversation = await prisma.conversation.create({
@@ -123,12 +124,77 @@ fastify.get('/api/conversations/:id/messages', async (request, reply) => {
     const messages = await prisma.message.findMany({
       where: { conversationId: id },
       orderBy: { createdAt: 'asc' },
-      include: { sender: { select: { id: true, name: true, avatarUrl: true } } },
+      include: { sender: { select: { id: true, name: true, avatarUrl: true, role: true } } },
     });
     return { messages };
   } catch (error) {
     fastify.log.error(error);
     return reply.status(500).send({ error: 'Failed to fetch messages' });
+  }
+});
+
+// Отправка сообщения из админки (оператор перехватывает диалог)
+fastify.post('/api/conversations/:id/messages', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  const { content } = (request.body || {}) as { content?: string };
+
+  if (!content?.trim()) {
+    return reply.status(400).send({ error: 'content is required' });
+  }
+
+  try {
+    const conversation = await prisma.conversation.findUnique({ where: { id } });
+    if (!conversation) {
+      return reply.status(404).send({ error: 'Conversation not found' });
+    }
+
+    // В реальности тут ID авторизованного оператора. Для демо — Admin Support.
+    let adminUser = await prisma.user.findFirst({
+      where: {
+        projectId: conversation.projectId,
+        name: 'Admin Support',
+        role: 'admin',
+      },
+    });
+
+    if (!adminUser) {
+      adminUser = await prisma.user.create({
+        data: {
+          projectId: conversation.projectId,
+          externalId: '__nativechat_admin__',
+          name: 'Admin Support',
+          role: 'admin',
+        },
+      });
+    }
+
+    const message = await prisma.message.create({
+      data: {
+        content: content.trim(),
+        senderId: adminUser.id,
+        conversationId: id,
+        type: 'text',
+      },
+      include: {
+        sender: { select: { id: true, name: true, avatarUrl: true, role: true } },
+      },
+    });
+
+    await prisma.conversation.update({
+      where: { id },
+      data: { updatedAt: new Date() },
+    });
+
+    // Тот же формат, что и WS-пайплайн → виджет клиента получает сразу
+    await publishEvent(id, {
+      type: 'new_message',
+      payload: message,
+    });
+
+    return { message };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Failed to send admin message' });
   }
 });
 
@@ -403,7 +469,7 @@ async function replyWithAgent(conversationId: string, userText: string) {
         },
       },
       include: {
-        sender: { select: { id: true, name: true, avatarUrl: true } },
+        sender: { select: { id: true, name: true, avatarUrl: true, role: true } },
       },
     });
 
@@ -491,7 +557,7 @@ fastify.ready((err) => {
               metadata: messageMetadata || undefined,
             },
             include: {
-              sender: { select: { id: true, name: true, avatarUrl: true } },
+              sender: { select: { id: true, name: true, avatarUrl: true, role: true } },
             },
           });
 

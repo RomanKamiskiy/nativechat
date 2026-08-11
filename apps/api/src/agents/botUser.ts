@@ -13,13 +13,22 @@ export async function getOrCreateAiBot(prisma: PrismaClient, projectId: string) 
     },
   });
 
-  if (existing) return existing;
+  if (existing) {
+    if (existing.role !== 'bot') {
+      return prisma.user.update({
+        where: { id: existing.id },
+        data: { role: 'bot' },
+      });
+    }
+    return existing;
+  }
 
   return prisma.user.create({
     data: {
       projectId,
       externalId: AI_BOT_EXTERNAL_ID,
       name: 'AI Agent',
+      role: 'bot',
       avatarUrl: null,
     },
   });

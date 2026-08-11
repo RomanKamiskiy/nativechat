@@ -40,6 +40,8 @@ model User {
   projectId     String
   project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name          String
+  /// user | admin | bot — used by dashboard/widget bubble alignment
+  role          String         @default("user")
   avatarUrl     String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
