@@ -101,3 +101,17 @@ Instead of inventing tariff tiers, let the installer pick an agent.
   - [ ] Encrypt `mcpAuthToken` at rest
   - [ ] Per-project rate limits only as abuse protection (not monetization)
   - [ ] MCP OAuth / session refresh
+
+## Epic 7: Admin Dashboard (Operator Workspace)
+**Goal:** Working UI for operators — inbox, users, AI/RAG, settings.
+
+- [x] **Feature 7.1: Dashboard scaffold**
+  - [x] Vite React-TS app in `apps/dashboard`
+  - [x] TailwindCSS + Lucide + react-router-dom + zustand
+  - [x] Sidebar layout: Inbox / Users / AI / Settings
+  - [x] Mock inbox + RAG stub screens
+  - [x] Root script `dev:dashboard` → http://localhost:5174
+- [ ] **Feature 7.2: Bind to real backend**
+  - [ ] Live conversations from API/WS
+  - [ ] Project agent + setup budget controls
+  - [ ] Operator reply into conversations

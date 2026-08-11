@@ -8,11 +8,16 @@ AI-native Headless Chat SDK and Messaging Infrastructure.
 nativechat/
 ├── apps/
 │   ├── api/           # Backend, WebSockets, REST
-│   └── web/           # Developer Console & Landing (Vite demo)
+│   ├── web/           # Widget demo (Vite)
+│   └── dashboard/     # Operator admin (Nativiq) — :5174
 ├── packages/
 │   ├── react-sdk/     # Headless UI primitives & hooks
 │   └── shared-types/  # Shared TypeScript interfaces
 └── docker-compose.yml
+```
+
+```bash
+npm run dev:dashboard   # http://localhost:5174
 ```
 
 ## Token model (setup vs chat)
