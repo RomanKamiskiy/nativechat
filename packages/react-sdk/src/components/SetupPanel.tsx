@@ -5,6 +5,8 @@ export interface SetupBudgetPublic {
   budget: number;
   used: number;
   remaining: number;
+  /** Alias for remaining (E2E / UI) */
+  tokensLeft?: number;
   completed: boolean;
   estimateForTune: number;
   canAutoTune: boolean;
@@ -138,7 +140,7 @@ export const SetupPanel = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
         <strong style={{ fontSize: 13 }}>Автонастройка продукта</strong>
         <span style={{ fontSize: 11, color: '#666' }}>
-          {setup.remaining}/{setup.budget} ток. осталось
+          {(setup.tokensLeft ?? setup.remaining)}/{setup.budget} ток. осталось
         </span>
       </div>
 

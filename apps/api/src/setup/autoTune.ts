@@ -6,6 +6,7 @@
 import {
   estimateAutoTuneTokens,
   toSetupBudgetSnapshot,
+  DISABLE_TOKEN_LIMITS,
 } from './budget';
 
 export interface ThemeTokens {
@@ -220,7 +221,17 @@ export async function runAutoTune(input: {
     { productUrl, productName, pageChars: pageSnippet.length || undefined }
   );
 
-  if (!setupBefore.canAutoTune) {
+  // TEMP: local E2E — skip insufficient_setup_tokens gate
+  // if (!setupBefore.canAutoTune) {
+  //   return {
+  //     ok: false,
+  //     code: 'insufficient_setup_tokens',
+  //     error: `Не хватает setup-токенов: нужно ~${estimate.total}, осталось ${setupBefore.remaining}`,
+  //     setup: setupBefore,
+  //     estimate,
+  //   };
+  // }
+  if (!DISABLE_TOKEN_LIMITS && !setupBefore.canAutoTune) {
     return {
       ok: false,
       code: 'insufficient_setup_tokens',
@@ -248,8 +259,13 @@ export async function runAutoTune(input: {
   }
 
   // Clamp to remaining so we never store used > budget from floaty LLM usage
-  const remaining = input.setupTokenBudget - input.setupTokensUsed;
-  tokensCharged = Math.min(tokensCharged, remaining);
+  // TEMP: when limits disabled, still charge estimate but do not clamp to tiny remaining
+  if (DISABLE_TOKEN_LIMITS) {
+    tokensCharged = Math.max(estimate.total, tokensCharged);
+  } else {
+    const remaining = input.setupTokenBudget - input.setupTokensUsed;
+    tokensCharged = Math.min(tokensCharged, remaining);
+  }
 
   return {
     ok: true,

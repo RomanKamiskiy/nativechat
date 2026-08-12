@@ -5,6 +5,8 @@ export interface MessageInputProps {
   startTyping: () => void;
   stopTyping: () => void;
   accentColor?: string;
+  /** Reserved for future token gates — forced false for local E2E */
+  isOutOfTokens?: boolean;
 }
 
 export const MessageInput = ({
@@ -12,8 +14,13 @@ export const MessageInput = ({
   startTyping,
   stopTyping,
   accentColor,
+  isOutOfTokens = false,
 }: MessageInputProps) => {
   const [text, setText] = useState('');
+
+  // TEMP: local E2E — never disable the composer due to token balance
+  const disabled = false; // was: Boolean(isOutOfTokens)
+  void isOutOfTokens;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setText(e.target.value);
@@ -26,6 +33,7 @@ export const MessageInput = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (disabled) return;
     if (text.trim()) {
       sendMessage(text.trim());
       setText('');
@@ -48,6 +56,7 @@ export const MessageInput = ({
         type="text"
         value={text}
         onChange={handleChange}
+        disabled={false}
         placeholder="Введите сообщение..."
         style={{
           flex: 1,
@@ -61,6 +70,7 @@ export const MessageInput = ({
       />
       <button
         type="submit"
+        disabled={false}
         style={{
           padding: '10px 16px',
           borderRadius: '8px',

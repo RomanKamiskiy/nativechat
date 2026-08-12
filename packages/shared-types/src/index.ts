@@ -66,6 +66,8 @@ export interface SetupBudgetPublic {
   budget: number;
   used: number;
   remaining: number;
+  /** Alias for remaining (E2E / UI) */
+  tokensLeft?: number;
   completed: boolean;
   estimateForTune: number;
   canAutoTune: boolean;

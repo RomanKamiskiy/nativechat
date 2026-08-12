@@ -143,6 +143,8 @@ function App() {
                 height="600px"
                 accentColor="#4f46e5"
                 token={session.token}
+                showSetupPanel={false}
+                showAgentSelector={false}
                 onAction={(action) => {
                   console.log('Widget Action Triggered:', action);
                   alert(

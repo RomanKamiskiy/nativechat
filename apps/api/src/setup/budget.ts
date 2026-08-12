@@ -4,6 +4,12 @@
  * after tune, the project uses free GPT Mini or the customer's MCP agent.
  */
 
+/** TEMP (local E2E): set DISABLE_TOKEN_LIMITS=true to skip setup-token gates. */
+export const DISABLE_TOKEN_LIMITS = process.env.DISABLE_TOKEN_LIMITS === 'true';
+
+/** Hardcoded “infinite” remaining shown to UI while limits are disabled */
+export const E2E_UNLIMITED_TOKENS_LEFT = 9_999_999;
+
 export const DEFAULT_SETUP_TOKEN_BUDGET = Number(
   process.env.SETUP_TOKEN_BUDGET || 8000
 );
@@ -29,6 +35,8 @@ export interface SetupBudgetSnapshot {
   estimateForTune: number;
   /** Whether remaining budget covers the estimate */
   canAutoTune: boolean;
+  /** Alias for remaining (UI / E2E convenience) */
+  tokensLeft?: number;
 }
 
 export interface TuneEstimateInput {
@@ -82,12 +90,27 @@ export function toSetupBudgetSnapshot(
   },
   estimateInput: TuneEstimateInput = {}
 ): SetupBudgetSnapshot {
-  const remaining = Math.max(0, project.setupTokenBudget - project.setupTokensUsed);
   const { total } = estimateAutoTuneTokens(estimateInput);
+
+  // TEMP: local E2E — always report unlimited budget so UI never blocks
+  if (DISABLE_TOKEN_LIMITS) {
+    return {
+      budget: E2E_UNLIMITED_TOKENS_LEFT,
+      used: 0,
+      remaining: E2E_UNLIMITED_TOKENS_LEFT,
+      tokensLeft: E2E_UNLIMITED_TOKENS_LEFT,
+      completed: Boolean(project.setupCompletedAt),
+      estimateForTune: total,
+      canAutoTune: true,
+    };
+  }
+
+  const remaining = Math.max(0, project.setupTokenBudget - project.setupTokensUsed);
   return {
     budget: project.setupTokenBudget,
     used: project.setupTokensUsed,
     remaining,
+    tokensLeft: remaining,
     completed: Boolean(project.setupCompletedAt),
     estimateForTune: total,
     canAutoTune: remaining >= total,
