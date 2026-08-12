@@ -196,9 +196,19 @@ function App() {
                 <p className="text-slate-500 mb-4 text-sm">
                   Загрузите инструкции, чтобы ИИ автоматически отвечал на частые вопросы.
                 </p>
-                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-                  + Добавить документ
-                </button>
+
+                <div className="flex flex-col gap-3">
+                  <textarea
+                    placeholder="Например: Чтобы сбросить пароль, перейдите в Настройки -> Безопасность..."
+                    className="w-full p-3 border border-slate-200 rounded-lg h-32 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                  <button
+                    type="button"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 self-start"
+                  >
+                    Обучить ИИ
+                  </button>
+                </div>
               </div>
             </div>
           )}

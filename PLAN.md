@@ -119,3 +119,16 @@ Instead of inventing tariff tiers, let the installer pick an agent.
   - [ ] Project agent + setup budget controls in Settings
   - [ ] Users list
   - [ ] Operator auth (not demo Admin Support)
+
+## Epic 8: AI & RAG (pgvector)
+**Goal:** Knowledge base with vector search for grounded AI answers.
+
+- [x] **Feature 8.1: pgvector + Knowledge model**
+  - [x] Prisma `postgresqlExtensions` + `vector` extension
+  - [x] `Knowledge` model (`content`, `embedding vector(768)`)
+  - [x] Migration `add_pgvector_and_knowledge`
+- [x] **Feature 8.2: Dashboard RAG form (UI stub)**
+  - [x] AI tab textarea + «Обучить ИИ»
+- [ ] **Feature 8.3: Embed + retrieve controller**
+  - [ ] POST knowledge → embed → store vector
+  - [ ] Similarity search in agent reply path

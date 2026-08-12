@@ -59,6 +59,7 @@ npm run dev:web
 
 - PostgreSQL: `localhost:5432` (user/password: `postgres`/`password`, db: `nativechat`)
 - Redis: `localhost:6379`
+- pgvector required for RAG (`CREATE EXTENSION vector` — package `postgresql-16-pgvector`)
 
 Stop:
 
