@@ -7,6 +7,7 @@ import jwt from '@fastify/jwt';
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
 import { generateAgentReply, toPublicAgentConfig } from './agents/service';
+import { callAgentWebhook } from './agents/webhook';
 import { getOrCreateAiBot } from './agents/botUser';
 import { estimateAutoTuneTokens, toSetupBudgetSnapshot, DEFAULT_SETUP_TOKEN_BUDGET } from './setup/budget';
 import { publicSetupState, runAutoTune } from './setup/autoTune';
@@ -262,6 +263,84 @@ fastify.get('/api/knowledge', async (request, reply) => {
 });
 
 // --- BYO Agent config ---
+
+/** Save project settings (custom agent webhook URL) */
+fastify.patch('/api/projects', async (request, reply) => {
+  const body = (request.body || {}) as {
+    agentUrl?: string | null;
+    projectId?: string;
+  };
+
+  try {
+    const project = body.projectId
+      ? await prisma.project.findUnique({ where: { id: body.projectId } })
+      : await prisma.project.findFirst({ orderBy: { updatedAt: 'desc' } });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const raw = body.agentUrl;
+    const agentUrl =
+      raw === undefined
+        ? undefined
+        : raw === null || String(raw).trim() === ''
+          ? null
+          : String(raw).trim();
+
+    if (agentUrl !== undefined && agentUrl !== null) {
+      try {
+        const parsed = new URL(agentUrl);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          return reply.status(400).send({ error: 'agentUrl must be http(s)' });
+        }
+      } catch {
+        return reply.status(400).send({ error: 'agentUrl is not a valid URL' });
+      }
+    }
+
+    const updatedProject = await prisma.project.update({
+      where: { id: project.id },
+      data: agentUrl === undefined ? {} : { agentUrl },
+    });
+
+    return {
+      project: {
+        id: updatedProject.id,
+        name: updatedProject.name,
+        agentUrl: updatedProject.agentUrl,
+        agentProvider: updatedProject.agentProvider,
+      },
+    };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Failed to update project' });
+  }
+});
+
+fastify.get('/api/projects', async (request, reply) => {
+  const { projectId } = (request.query || {}) as { projectId?: string };
+  try {
+    const project = projectId
+      ? await prisma.project.findUnique({ where: { id: projectId } })
+      : await prisma.project.findFirst({ orderBy: { updatedAt: 'desc' } });
+
+    if (!project) return reply.status(404).send({ error: 'Project not found' });
+
+    return {
+      project: {
+        id: project.id,
+        name: project.name,
+        agentUrl: project.agentUrl,
+        agentProvider: project.agentProvider,
+        mcpServerUrl: project.mcpServerUrl,
+      },
+    };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Failed to fetch project' });
+  }
+});
 
 fastify.get('/api/projects/:id/agent', async (request, reply) => {
   const { id } = request.params as { id: string };
@@ -643,8 +722,66 @@ fastify.ready((err) => {
 
                   const conversation = await prisma.conversation.findUnique({
                     where: { id: roomId },
+                    include: { project: true },
                   });
-                  if (!conversation) return;
+                  if (!conversation?.project) return;
+
+                  const project = conversation.project;
+
+                  // 0) Custom agent webhook (BYOA) — highest priority when URL is set
+                  if (project.agentUrl) {
+                    const bot = await getOrCreateAiBot(prisma, project.id);
+                    await publishEvent(roomId, {
+                      type: 'typing_start',
+                      payload: { userId: bot.id, name: bot.name },
+                    });
+
+                    try {
+                      const result = await callAgentWebhook(project.agentUrl, {
+                        conversationId: roomId,
+                        message: userText,
+                        projectId: project.id,
+                      });
+
+                      if (result.ok) {
+                        const aiMessage = await prisma.message.create({
+                          data: {
+                            content: result.data.text,
+                            senderId: bot.id,
+                            conversationId: roomId,
+                            type: result.data.type || 'text',
+                            metadata: {
+                              source: 'byoa_webhook',
+                              agentUrl: project.agentUrl,
+                              ...(result.data.metadata || {}),
+                            },
+                          },
+                          include: {
+                            sender: {
+                              select: { id: true, name: true, avatarUrl: true, role: true },
+                            },
+                          },
+                        });
+                        await publishEvent(roomId, {
+                          type: 'new_message',
+                          payload: aiMessage,
+                        });
+                        return; // skip RAG / free_mini when BYOA answered
+                      }
+
+                      fastify.log.warn(
+                        { error: result.error },
+                        'BYOA webhook failed — falling back to RAG / free agent'
+                      );
+                    } catch (byoaErr) {
+                      fastify.log.error({ byoaErr }, 'BYOA webhook error');
+                    } finally {
+                      await publishEvent(roomId, {
+                        type: 'typing_stop',
+                        payload: { userId: bot.id, name: bot.name },
+                      });
+                    }
+                  }
 
                   // 1) RAG over Knowledge (Gemini embeddings + flash)
                   if (hasGeminiKey()) {

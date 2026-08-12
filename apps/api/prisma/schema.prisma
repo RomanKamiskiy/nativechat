@@ -22,6 +22,9 @@ model Project {
   /// Optional bearer token for the customer's MCP agent (stored server-side only)
   mcpAuthToken  String?
 
+  /// Simple BYOA webhook (POST JSON → { text } or UI card). Takes priority over RAG / free_mini.
+  agentUrl      String?
+
   /// Limited platform tokens ONLY for one-shot product auto-tune (not chat)
   setupTokenBudget Int         @default(8000)
   setupTokensUsed  Int         @default(0)

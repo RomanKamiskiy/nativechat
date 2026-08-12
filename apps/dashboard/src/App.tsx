@@ -8,6 +8,8 @@ function App() {
   const [inputText, setInputText] = useState('');
   const [knowledgeText, setKnowledgeText] = useState('');
   const [training, setTraining] = useState(false);
+  const [agentUrl, setAgentUrl] = useState('');
+  const [savingAgent, setSavingAgent] = useState(false);
   const apiBase = getApiBase();
   const {
     conversations,
@@ -43,11 +45,49 @@ function App() {
     }
   };
 
+  const handleSaveAgent = async () => {
+    if (savingAgent) return;
+    setSavingAgent(true);
+    try {
+      const res = await fetch(`${apiBase}/api/projects`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentUrl: agentUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Не удалось сохранить URL');
+        return;
+      }
+      setAgentUrl(data.project?.agentUrl || '');
+      alert(
+        data.project?.agentUrl
+          ? 'URL внешнего агента сохранён! Запросы пойдут на webhook.'
+          : 'URL очищен — снова RAG / GPT Mini.'
+      );
+    } catch (err) {
+      console.error(err);
+      alert('Ошибка сети при сохранении URL');
+    } finally {
+      setSavingAgent(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'inbox') {
       fetch(`${apiBase}/api/conversations`)
         .then((res) => res.json())
         .then((data) => setConversations(data.conversations || []))
+        .catch(console.error);
+    }
+    if (activeTab === 'ai') {
+      fetch(`${apiBase}/api/projects`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.project?.agentUrl != null) {
+            setAgentUrl(data.project.agentUrl || '');
+          }
+        })
         .catch(console.error);
     }
   }, [activeTab, apiBase, setConversations]);
@@ -218,9 +258,37 @@ function App() {
           {activeTab === 'ai' && (
             <div className="max-w-2xl">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-6">
+                <h2 className="text-lg font-semibold text-slate-800 mb-2">
+                  Кастомный агент (BYOA / MCP)
+                </h2>
+                <p className="text-slate-500 mb-4 text-sm">
+                  Укажите Webhook URL вашего агента. Если поле заполнено, запросы пойдут к
+                  нему, а не к встроенной базе знаний.
+                </p>
+                <div className="flex gap-3">
+                  <input
+                    type="url"
+                    value={agentUrl}
+                    onChange={(e) => setAgentUrl(e.target.value)}
+                    placeholder="https://ваша-система.com/api/agent"
+                    className="flex-1 p-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveAgent()}
+                    disabled={savingAgent}
+                    className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-900 disabled:opacity-60"
+                  >
+                    {savingAgent ? 'Сохраняем…' : 'Сохранить URL'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-6">
                 <h2 className="text-lg font-semibold text-slate-800 mb-2">Настройка базы знаний (RAG)</h2>
                 <p className="text-slate-500 mb-4 text-sm">
-                  Загрузите инструкции, чтобы ИИ автоматически отвечал на частые вопросы.
+                  Загрузите инструкции, чтобы ИИ автоматически отвечал на частые вопросы
+                  (используется, если webhook агента не задан).
                 </p>
 
                 <div className="flex flex-col gap-3">
