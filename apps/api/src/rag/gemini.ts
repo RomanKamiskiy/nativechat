@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 
 const EMBED_MODEL = process.env.GEMINI_EMBED_MODEL || 'gemini-embedding-001';
-const CHAT_MODEL = process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash';
+// gemini-2.5-flash is listed but returns 404 for new API keys — use stable alias
+const CHAT_MODEL = process.env.GEMINI_CHAT_MODEL || 'gemini-flash-latest';
 const EMBED_DIMS = Number(process.env.GEMINI_EMBED_DIMS || 768);
 const SIMILARITY_THRESHOLD = Number(process.env.RAG_SIMILARITY_THRESHOLD || 0.75);
 

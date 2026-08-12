@@ -648,43 +648,47 @@ fastify.ready((err) => {
 
                   // 1) RAG over Knowledge (Gemini embeddings + flash)
                   if (hasGeminiKey()) {
-                    const hit = await findRelevantKnowledge(
-                      prisma,
-                      conversation.projectId,
-                      userText
-                    );
-                    if (hit) {
-                      const aiText = await generateRagAnswer(userText, hit.content);
-                      const bot = await getOrCreateAiBot(prisma, conversation.projectId);
-                      const aiMessage = await prisma.message.create({
-                        data: {
-                          content: aiText,
-                          senderId: bot.id,
-                          conversationId: roomId,
-                          type: 'text',
-                          metadata: {
-                            source: 'rag',
-                            similarity: hit.similarity,
+                    try {
+                      const hit = await findRelevantKnowledge(
+                        prisma,
+                        conversation.projectId,
+                        userText
+                      );
+                      if (hit) {
+                        const aiText = await generateRagAnswer(userText, hit.content);
+                        const bot = await getOrCreateAiBot(prisma, conversation.projectId);
+                        const aiMessage = await prisma.message.create({
+                          data: {
+                            content: aiText,
+                            senderId: bot.id,
+                            conversationId: roomId,
+                            type: 'text',
+                            metadata: {
+                              source: 'rag',
+                              similarity: hit.similarity,
+                            },
                           },
-                        },
-                        include: {
-                          sender: {
-                            select: { id: true, name: true, avatarUrl: true, role: true },
+                          include: {
+                            sender: {
+                              select: { id: true, name: true, avatarUrl: true, role: true },
+                            },
                           },
-                        },
-                      });
-                      await publishEvent(roomId, {
-                        type: 'new_message',
-                        payload: aiMessage,
-                      });
-                      return; // skip free_mini / mcp when RAG answered
+                        });
+                        await publishEvent(roomId, {
+                          type: 'new_message',
+                          payload: aiMessage,
+                        });
+                        return; // skip free_mini / mcp when RAG answered
+                      }
+                    } catch (ragErr) {
+                      fastify.log.error({ ragErr }, 'RAG reply failed — falling back to agent');
                     }
                   }
 
                   // 2) Fallback: free mini or customer's MCP agent
                   await replyWithAgent(roomId, userText);
                 } catch (e) {
-                  fastify.log.error({ e }, 'RAG / agent reply failed');
+                  fastify.log.error({ e }, 'agent reply failed');
                   try {
                     await replyWithAgent(roomId, userText);
                   } catch (fallbackErr) {
