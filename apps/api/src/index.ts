@@ -17,6 +17,7 @@ import {
   storeKnowledge,
 } from './rag/gemini';
 import { handleTelegramUpdate } from './telegram/webhook';
+import { registerTelegramWebhookOnBoot } from './telegram/registerWebhook';
 
 dotenv.config();
 
@@ -910,6 +911,7 @@ const start = async () => {
   try {
     await fastify.listen({ port: 3001, host: '0.0.0.0' });
     console.log('🚀 NativeChat API running on http://localhost:3001');
+    await registerTelegramWebhookOnBoot(fastify.log);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

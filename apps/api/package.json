@@ -11,7 +11,8 @@
     "db:generate": "prisma generate",
     "test:agents": "tsx src/agents/service.test.ts",
     "test:setup": "tsx src/setup/budget.test.ts",
-    "test:smoke": "node src/agents/smoke.mjs"
+    "test:smoke": "node src/agents/smoke.mjs",
+    "telegram:set-webhook": "node src/telegram/setWebhook.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
