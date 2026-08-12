@@ -30,6 +30,7 @@ export const DEFAULT_THEME: ThemeTokens = {
 
 export function themeToCssVars(theme: ThemeTokens): CSSProperties {
   return {
+    ['--nc-accent' as string]: theme.primary,
     ['--nc-primary' as string]: theme.primary,
     ['--nc-bg' as string]: theme.background,
     ['--nc-surface' as string]: theme.surface,

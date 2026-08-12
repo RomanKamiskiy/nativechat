@@ -154,7 +154,7 @@ export const SetupPanel = ({
           style={{
             width: `${pct}%`,
             height: '100%',
-            background: '#007aff',
+            background: 'var(--nc-accent, #007aff)',
           }}
         />
       </div>
@@ -238,7 +238,7 @@ export const SetupPanel = ({
             padding: '8px 10px',
             borderRadius: 8,
             border: 'none',
-            background: '#007aff',
+            background: 'var(--nc-accent, #007aff)',
             color: '#fff',
             fontWeight: 600,
             fontSize: 12,

@@ -20,6 +20,8 @@ export interface ChatWidgetProps {
   wsUrl?: string;
   width?: string | number;
   height?: string | number;
+  /** Brand accent — send button, user bubbles, pricing CTA */
+  accentColor?: string;
   /** Show one-shot product auto-tune (spends limited setup tokens) */
   showSetupPanel?: boolean;
   /** Show agent picker (free GPT Mini vs own MCP agent) */
@@ -39,6 +41,7 @@ export const ChatWidget = ({
   wsUrl,
   width = '100%',
   height = '500px',
+  accentColor = '#2563eb',
   showSetupPanel = true,
   showAgentSelector = true,
   onAction,
@@ -53,25 +56,33 @@ export const ChatWidget = ({
   });
   const [agent, setAgent] = useState<AgentConfigPublic | null>(initialAgent);
   const [setup, setSetup] = useState<SetupBudgetPublic | null>(initialSetup);
-  const theme: ThemeTokens = setup?.themeTokens || DEFAULT_THEME;
+  const baseTheme: ThemeTokens = setup?.themeTokens || DEFAULT_THEME;
+  const theme: ThemeTokens = {
+    ...baseTheme,
+    primary: accentColor || baseTheme.primary,
+    userBubble: accentColor || baseTheme.userBubble,
+  };
 
   return (
     <div
       className="nc-chat-wrapper"
-      style={{
-        width,
-        height,
-        display: 'flex',
-        flexDirection: 'column',
-        border: `1px solid ${theme.border}`,
-        borderRadius: theme.radius,
-        overflow: 'hidden',
-        backgroundColor: theme.surface,
-        boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-        fontFamily: theme.fontFamily,
-        color: theme.text,
-        ...themeToCssVars(theme),
-      }}
+      style={
+        {
+          width,
+          height,
+          display: 'flex',
+          flexDirection: 'column',
+          border: `1px solid ${theme.border}`,
+          borderRadius: theme.radius,
+          overflow: 'hidden',
+          backgroundColor: theme.surface,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+          fontFamily: theme.fontFamily,
+          color: theme.text,
+          ...themeToCssVars(theme),
+          ['--nc-accent' as string]: accentColor,
+        } as React.CSSProperties
+      }
     >
       {showSetupPanel && projectId && (
         <SetupPanel
@@ -108,8 +119,9 @@ export const ChatWidget = ({
           {setup.welcomeMessage}
         </div>
       )}
-      <MessageList onAction={onAction} />
+      <MessageList accentColor={accentColor} onAction={onAction} />
       <MessageInput
+        accentColor={accentColor}
         sendMessage={sendMessage}
         startTyping={startTyping}
         stopTyping={stopTyping}

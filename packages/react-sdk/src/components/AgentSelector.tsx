@@ -198,7 +198,7 @@ export const AgentSelector = ({
                   textAlign: 'left',
                   padding: '10px 12px',
                   borderRadius: 8,
-                  border: active ? '1.5px solid #007aff' : '1px solid #e5e5e5',
+                  border: active ? '1.5px solid var(--nc-accent, #007aff)' : '1px solid #e5e5e5',
                   background: active ? '#f0f7ff' : '#fff',
                   cursor: 'pointer',
                 }}
@@ -279,7 +279,7 @@ export const AgentSelector = ({
                   padding: '10px 12px',
                   borderRadius: 8,
                   border: 'none',
-                  background: '#007aff',
+                  background: 'var(--nc-accent, #007aff)',
                   color: '#fff',
                   fontWeight: 600,
                   fontSize: 13,
