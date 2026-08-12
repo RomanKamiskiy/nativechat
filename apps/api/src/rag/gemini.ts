@@ -6,7 +6,7 @@ const EMBED_MODEL = process.env.GEMINI_EMBED_MODEL || 'gemini-embedding-001';
 // gemini-2.5-flash is listed but returns 404 for new API keys — use stable alias
 const CHAT_MODEL = process.env.GEMINI_CHAT_MODEL || 'gemini-flash-latest';
 const EMBED_DIMS = Number(process.env.GEMINI_EMBED_DIMS || 768);
-const SIMILARITY_THRESHOLD = Number(process.env.RAG_SIMILARITY_THRESHOLD || 0.75);
+const SIMILARITY_THRESHOLD = Number(process.env.RAG_SIMILARITY_THRESHOLD || 0.5);
 
 function getGenAI() {
   const key = process.env.GEMINI_API_KEY;
@@ -100,9 +100,14 @@ export async function generateRagAnswer(
   const genAI = getGenAI();
   const chatModel = genAI.getGenerativeModel({ model: CHAT_MODEL });
   const prompt =
-    `Пользователь спросил: "${userQuestion}". ` +
-    `Ответь ему вежливо, используя ТОЛЬКО эту информацию: "${knowledge}". ` +
-    `Если информация не отвечает на вопрос полностью, просто дай ту часть, что есть.`;
+    `Ты — ассистент поддержки. Пользователь спросил: "${userQuestion}".\n` +
+    `Ниже — ЕДИНСТВЕННЫЙ допустимый источник ответа (фрагмент базы знаний):\n` +
+    `"""${knowledge}"""\n` +
+    `Правила:\n` +
+    `1) Ответь вежливо и по делу, опираясь ТОЛЬКО на текст выше.\n` +
+    `2) Не придумывай факты, цены, ссылки или шаги, которых нет в фрагменте.\n` +
+    `3) Если во фрагменте нет полного ответа — скажи только то, что там есть, и коротко отметь, чего не хватает.\n` +
+    `4) Отвечай на языке пользователя.`;
 
   const aiResponse = await chatModel.generateContent(prompt);
   return aiResponse.response.text().trim();
@@ -123,7 +128,7 @@ export async function generateGeneralReply(userQuestion: string): Promise<string
 }
 
 /**
- * Always call Gemini Flash: grounded on Knowledge when similarity is high,
+ * Always call Gemini Flash: grounded on Knowledge when similarity ≥ threshold,
  * otherwise a short general assistant reply (no hardcoded GPT Mini stub).
  */
 export async function generateGeminiFallbackReply(
