@@ -6,6 +6,8 @@ import { getApiBase } from './apiBase';
 function App() {
   const [activeTab, setActiveTab] = useState('inbox');
   const [inputText, setInputText] = useState('');
+  const [knowledgeText, setKnowledgeText] = useState('');
+  const [training, setTraining] = useState(false);
   const apiBase = getApiBase();
   const {
     conversations,
@@ -16,6 +18,30 @@ function App() {
     setMessages,
     appendMessage,
   } = useDashboardStore();
+
+  const handleTrainAI = async () => {
+    if (!knowledgeText.trim() || training) return;
+    setTraining(true);
+    try {
+      const res = await fetch(`${apiBase}/api/knowledge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: knowledgeText.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Не удалось обучить ИИ');
+        return;
+      }
+      alert('База знаний обновлена!');
+      setKnowledgeText('');
+    } catch (err) {
+      console.error(err);
+      alert('Ошибка сети при обучении ИИ');
+    } finally {
+      setTraining(false);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'inbox') {
@@ -199,14 +225,18 @@ function App() {
 
                 <div className="flex flex-col gap-3">
                   <textarea
+                    value={knowledgeText}
+                    onChange={(e) => setKnowledgeText(e.target.value)}
                     placeholder="Например: Чтобы сбросить пароль, перейдите в Настройки -> Безопасность..."
                     className="w-full p-3 border border-slate-200 rounded-lg h-32 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   />
                   <button
                     type="button"
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 self-start"
+                    onClick={() => void handleTrainAI()}
+                    disabled={training || !knowledgeText.trim()}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 self-start disabled:opacity-60"
                   >
-                    Обучить ИИ
+                    {training ? 'Обучаем…' : 'Обучить ИИ'}
                   </button>
                 </div>
               </div>

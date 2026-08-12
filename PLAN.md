@@ -127,8 +127,10 @@ Instead of inventing tariff tiers, let the installer pick an agent.
   - [x] Prisma `postgresqlExtensions` + `vector` extension
   - [x] `Knowledge` model (`content`, `embedding vector(768)`)
   - [x] Migration `add_pgvector_and_knowledge`
-- [x] **Feature 8.2: Dashboard RAG form (UI stub)**
-  - [x] AI tab textarea + «Обучить ИИ»
-- [ ] **Feature 8.3: Embed + retrieve controller**
-  - [ ] POST knowledge → embed → store vector
-  - [ ] Similarity search in agent reply path
+- [x] **Feature 8.2: Dashboard RAG form**
+  - [x] AI tab textarea + «Обучить ИИ» → `POST /api/knowledge`
+- [x] **Feature 8.3: Embed + retrieve controller**
+  - [x] Gemini `text-embedding-004` → `vector(768)` in pgvector
+  - [x] WS path: similarity search → `gemini-1.5-flash` answer if score > 0.75
+  - [x] Else fallback to free_mini / MCP agent
+  - [ ] Needs `GEMINI_API_KEY` in `apps/api/.env`

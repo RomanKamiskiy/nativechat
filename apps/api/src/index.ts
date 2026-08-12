@@ -10,6 +10,12 @@ import { generateAgentReply, toPublicAgentConfig } from './agents/service';
 import { getOrCreateAiBot } from './agents/botUser';
 import { estimateAutoTuneTokens, toSetupBudgetSnapshot, DEFAULT_SETUP_TOKEN_BUDGET } from './setup/budget';
 import { publicSetupState, runAutoTune } from './setup/autoTune';
+import {
+  findRelevantKnowledge,
+  generateRagAnswer,
+  hasGeminiKey,
+  storeKnowledge,
+} from './rag/gemini';
 
 dotenv.config();
 
@@ -195,6 +201,63 @@ fastify.post('/api/conversations/:id/messages', async (request, reply) => {
   } catch (error) {
     fastify.log.error(error);
     return reply.status(500).send({ error: 'Failed to send admin message' });
+  }
+});
+
+// --- RAG Knowledge base ---
+
+fastify.post('/api/knowledge', async (request, reply) => {
+  const { content, projectId } = (request.body || {}) as {
+    content?: string;
+    projectId?: string;
+  };
+
+  if (!content?.trim()) {
+    return reply.status(400).send({ error: 'content is required' });
+  }
+
+  if (!hasGeminiKey()) {
+    return reply.status(503).send({
+      error: 'GEMINI_API_KEY is not configured',
+      hint: 'Add GEMINI_API_KEY to apps/api/.env (Google AI Studio)',
+    });
+  }
+
+  try {
+    let project = projectId
+      ? await prisma.project.findUnique({ where: { id: projectId } })
+      : await prisma.project.findFirst({ orderBy: { updatedAt: 'desc' } });
+
+    if (!project) {
+      return reply.status(400).send({ error: 'Project not found' });
+    }
+
+    const saved = await storeKnowledge(prisma, project.id, content.trim());
+    return { success: true, id: saved.id, projectId: project.id };
+  } catch (error) {
+    fastify.log.error({ error }, 'Embedding error');
+    return reply.status(500).send({ error: 'Failed to generate embedding' });
+  }
+});
+
+fastify.get('/api/knowledge', async (request, reply) => {
+  const { projectId } = (request.query || {}) as { projectId?: string };
+  try {
+    const project = projectId
+      ? await prisma.project.findUnique({ where: { id: projectId } })
+      : await prisma.project.findFirst({ orderBy: { updatedAt: 'desc' } });
+
+    if (!project) return { items: [] };
+
+    const items = await prisma.knowledge.findMany({
+      where: { projectId: project.id },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, content: true, createdAt: true, projectId: true },
+    });
+    return { items, projectId: project.id, geminiConfigured: hasGeminiKey() };
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.status(500).send({ error: 'Failed to list knowledge' });
   }
 });
 
@@ -566,14 +629,69 @@ fastify.ready((err) => {
             payload: savedMessage,
           });
 
-          // Kick off BYO-agent reply (free mini or customer's MCP agent)
-          // Skip for pure UI demo commands
+          // Kick off RAG (if knowledge hit) or BYO-agent fallback
           if (content.trim() !== '/pricing') {
             const roomId = currentRoom;
+            const senderId = user.userId as string;
+            const userText = content.trim();
             setImmediate(() => {
-              replyWithAgent(roomId, content.trim()).catch((e) =>
-                fastify.log.error({ e }, 'replyWithAgent')
-              );
+              void (async () => {
+                try {
+                  const sender = await prisma.user.findUnique({ where: { id: senderId } });
+                  // Operators / bots don't trigger auto-replies
+                  if (sender?.role === 'admin' || sender?.role === 'bot') return;
+
+                  const conversation = await prisma.conversation.findUnique({
+                    where: { id: roomId },
+                  });
+                  if (!conversation) return;
+
+                  // 1) RAG over Knowledge (Gemini embeddings + flash)
+                  if (hasGeminiKey()) {
+                    const hit = await findRelevantKnowledge(
+                      prisma,
+                      conversation.projectId,
+                      userText
+                    );
+                    if (hit) {
+                      const aiText = await generateRagAnswer(userText, hit.content);
+                      const bot = await getOrCreateAiBot(prisma, conversation.projectId);
+                      const aiMessage = await prisma.message.create({
+                        data: {
+                          content: aiText,
+                          senderId: bot.id,
+                          conversationId: roomId,
+                          type: 'text',
+                          metadata: {
+                            source: 'rag',
+                            similarity: hit.similarity,
+                          },
+                        },
+                        include: {
+                          sender: {
+                            select: { id: true, name: true, avatarUrl: true, role: true },
+                          },
+                        },
+                      });
+                      await publishEvent(roomId, {
+                        type: 'new_message',
+                        payload: aiMessage,
+                      });
+                      return; // skip free_mini / mcp when RAG answered
+                    }
+                  }
+
+                  // 2) Fallback: free mini or customer's MCP agent
+                  await replyWithAgent(roomId, userText);
+                } catch (e) {
+                  fastify.log.error({ e }, 'RAG / agent reply failed');
+                  try {
+                    await replyWithAgent(roomId, userText);
+                  } catch (fallbackErr) {
+                    fastify.log.error({ fallbackErr }, 'replyWithAgent');
+                  }
+                }
+              })();
             });
           }
         }
