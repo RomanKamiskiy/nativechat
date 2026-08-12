@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { MessageSquare, Settings, Users, Zap } from 'lucide-react';
 import { useDashboardStore } from './store';
+import { getApiBase } from './apiBase';
 
 function App() {
   const [activeTab, setActiveTab] = useState('inbox');
   const [inputText, setInputText] = useState('');
+  const apiBase = getApiBase();
   const {
     conversations,
     activeConversationId,
@@ -17,17 +19,17 @@ function App() {
 
   useEffect(() => {
     if (activeTab === 'inbox') {
-      fetch('http://localhost:3001/api/conversations')
+      fetch(`${apiBase}/api/conversations`)
         .then((res) => res.json())
         .then((data) => setConversations(data.conversations || []))
         .catch(console.error);
     }
-  }, [activeTab, setConversations]);
+  }, [activeTab, apiBase, setConversations]);
 
   const handleSelectConversation = (id: string) => {
     setActiveConversation(id);
     setInputText('');
-    fetch(`http://localhost:3001/api/conversations/${id}/messages`)
+    fetch(`${apiBase}/api/conversations/${id}/messages`)
       .then((res) => res.json())
       .then((data) => setMessages(data.messages || []))
       .catch(console.error);
@@ -42,7 +44,7 @@ function App() {
 
     try {
       const res = await fetch(
-        `http://localhost:3001/api/conversations/${activeConversationId}/messages`,
+        `${apiBase}/api/conversations/${activeConversationId}/messages`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -54,7 +56,7 @@ function App() {
       if (data.message) {
         appendMessage(data.message);
         // refresh list preview
-        fetch('http://localhost:3001/api/conversations')
+        fetch(`${apiBase}/api/conversations`)
           .then((r) => r.json())
           .then((d) => setConversations(d.conversations || []))
           .catch(console.error);
