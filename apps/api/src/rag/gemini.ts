@@ -2,8 +2,9 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 
-const EMBED_MODEL = process.env.GEMINI_EMBED_MODEL || 'text-embedding-004';
-const CHAT_MODEL = process.env.GEMINI_CHAT_MODEL || 'gemini-1.5-flash';
+const EMBED_MODEL = process.env.GEMINI_EMBED_MODEL || 'gemini-embedding-001';
+const CHAT_MODEL = process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash';
+const EMBED_DIMS = Number(process.env.GEMINI_EMBED_DIMS || 768);
 const SIMILARITY_THRESHOLD = Number(process.env.RAG_SIMILARITY_THRESHOLD || 0.75);
 
 function getGenAI() {
@@ -26,10 +27,17 @@ function toVectorLiteral(values: number[]): string {
 export async function embedText(content: string): Promise<number[]> {
   const genAI = getGenAI();
   const embedModel = genAI.getGenerativeModel({ model: EMBED_MODEL });
-  const result = await embedModel.embedContent(content);
+  // gemini-embedding-001 defaults to 3072; request 768 to match Knowledge.embedding
+  const result = await embedModel.embedContent({
+    content: { parts: [{ text: content }] },
+    outputDimensionality: EMBED_DIMS,
+  } as any);
   const values = result.embedding?.values;
   if (!values?.length) {
     throw new Error('Empty embedding from Gemini');
+  }
+  if (values.length !== EMBED_DIMS) {
+    throw new Error(`Expected embedding dim ${EMBED_DIMS}, got ${values.length}`);
   }
   return values;
 }
