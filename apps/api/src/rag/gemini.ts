@@ -93,6 +93,13 @@ export async function findRelevantKnowledge(
   return { content: rows[0].content, similarity };
 }
 
+const UI_PRICING_CARD_TAG = '[UI:PRICING_CARD]';
+
+const UI_PRICING_INSTRUCTION =
+  `Если пользователь спрашивает про тарифы, стоимость, цену или хочет купить/оплатить подписку, ` +
+  `ОБЯЗАТЕЛЬНО добавь в самый конец своего ответа специальный тег: ${UI_PRICING_CARD_TAG}. ` +
+  `В остальных случаях этот тег не используй.`;
+
 export async function generateRagAnswer(
   userQuestion: string,
   knowledge: string
@@ -107,7 +114,8 @@ export async function generateRagAnswer(
     `1) Ответь вежливо и по делу, опираясь ТОЛЬКО на текст выше.\n` +
     `2) Не придумывай факты, цены, ссылки или шаги, которых нет в фрагменте.\n` +
     `3) Если во фрагменте нет полного ответа — скажи только то, что там есть, и коротко отметь, чего не хватает.\n` +
-    `4) Отвечай на языке пользователя.`;
+    `4) Отвечай на языке пользователя.\n` +
+    `5) ${UI_PRICING_INSTRUCTION}`;
 
   const aiResponse = await chatModel.generateContent(prompt);
   return aiResponse.response.text().trim();
@@ -121,7 +129,8 @@ export async function generateGeneralReply(userQuestion: string): Promise<string
     `Пользователь написал: "${userQuestion}". ` +
     `Ответь ему кратко, дружелюбно и естественно. ` +
     `Если это просто приветствие, поздоровайся в ответ. ` +
-    `Отвечай на языке пользователя.`;
+    `Отвечай на языке пользователя. ` +
+    UI_PRICING_INSTRUCTION;
 
   const aiResponse = await chatModel.generateContent(prompt);
   return aiResponse.response.text().trim();

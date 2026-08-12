@@ -3,9 +3,26 @@ import { useChatStore } from '../store';
 import { PricingCard } from './cards/PricingCard';
 import { NativiqAction } from '../types';
 
+const UI_PRICING_CARD_TAG = '[UI:PRICING_CARD]';
+
+const DEFAULT_PRICING_META = {
+  title: 'Pro',
+  price: 99,
+  features: ['Безлимит чатов', 'AI Ассистент', 'Custom UI Карточки'],
+};
+
 export interface MessageListProps {
   onAction?: (action: NativiqAction) => void;
   accentColor?: string;
+}
+
+function parseUiPricingTag(content: string): {
+  hasPricingCard: boolean;
+  cleanText: string;
+} {
+  const hasPricingCard = content.includes(UI_PRICING_CARD_TAG);
+  const cleanText = content.replace(/\[UI:PRICING_CARD\]/g, '').trim();
+  return { hasPricingCard, cleanText };
 }
 
 export const MessageList = ({ onAction, accentColor }: MessageListProps) => {
@@ -40,13 +57,19 @@ export const MessageList = ({ onAction, accentColor }: MessageListProps) => {
               }}
             >
               <PricingCard
-                metadata={msg.metadata || {}}
+                metadata={{ ...DEFAULT_PRICING_META, ...(msg.metadata || {}) }}
                 onAction={onAction}
                 accentColor={accentColor}
               />
             </div>
           );
         }
+
+        const { hasPricingCard, cleanText } = parseUiPricingTag(msg.content || '');
+        const pricingMeta = {
+          ...DEFAULT_PRICING_META,
+          ...(msg.metadata || {}),
+        };
 
         return (
           <div
@@ -65,7 +88,18 @@ export const MessageList = ({ onAction, accentColor }: MessageListProps) => {
               fontSize: '14px',
             }}
           >
-            <div className="nc-message-content">{msg.content}</div>
+            {cleanText ? <div className="nc-message-content">{cleanText}</div> : null}
+
+            {hasPricingCard && (
+              <div style={{ marginTop: cleanText ? 12 : 0 }}>
+                <PricingCard
+                  metadata={pricingMeta}
+                  onAction={onAction}
+                  accentColor={accentColor}
+                />
+              </div>
+            )}
+
             {msg.status === 'sending' && (
               <small
                 style={{
