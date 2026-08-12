@@ -16,6 +16,7 @@ import {
   hasGeminiKey,
   storeKnowledge,
 } from './rag/gemini';
+import { handleTelegramUpdate } from './telegram/webhook';
 
 dotenv.config();
 
@@ -259,6 +260,26 @@ fastify.get('/api/knowledge', async (request, reply) => {
     fastify.log.error(error);
     return reply.status(500).send({ error: 'Failed to list knowledge' });
   }
+});
+
+// --- Telegram Bot webhook (same RAG / Gemini core) ---
+
+fastify.post('/api/telegram/webhook', async (request, reply) => {
+  try {
+    await handleTelegramUpdate(prisma, (request.body || {}) as any);
+  } catch (error) {
+    fastify.log.error({ error }, 'Telegram Webhook Error');
+  }
+  // Always 200 so Telegram does not retry forever on our bugs
+  return reply.send({ ok: true });
+});
+
+fastify.get('/api/telegram/health', async () => {
+  return {
+    ok: true,
+    configured: Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim()),
+    gemini: hasGeminiKey(),
+  };
 });
 
 // --- BYO Agent config ---
