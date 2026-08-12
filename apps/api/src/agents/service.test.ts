@@ -25,16 +25,17 @@ async function run() {
   assert.equal(mcpPublic.mcpToolName, 'ask');
   assert.equal(mcpPublic.hasMcpAuth, false);
 
-  // Without OPENAI_API_KEY → demo free mini reply
+  // Without Gemini / OpenAI keys → clear configuration error (no hardcoded demo stub)
   delete process.env.OPENAI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
   const reply = await generateAgentReply({
     project: { agentProvider: 'free_mini' },
     userMessage: 'Привет из теста',
     conversationId: 'conv-test',
   });
   assert.equal(reply.provider, 'free_mini');
-  assert.match(reply.content, /GPT Mini/i);
-  assert.match(reply.content, /Привет из теста/);
+  assert.match(reply.content, /GEMINI_API_KEY/);
+  assert.equal(reply.error, 'missing_gemini_and_openai');
 
   // MCP without URL → friendly error content
   const mcpMissing = await generateAgentReply({

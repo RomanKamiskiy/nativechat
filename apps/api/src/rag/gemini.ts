@@ -108,4 +108,58 @@ export async function generateRagAnswer(
   return aiResponse.response.text().trim();
 }
 
-export { SIMILARITY_THRESHOLD };
+export async function generateGeneralReply(userQuestion: string): Promise<string> {
+  const genAI = getGenAI();
+  const chatModel = genAI.getGenerativeModel({ model: CHAT_MODEL });
+  const prompt =
+    `Ты — вежливый ИИ-ассистент платформы Nativiq. ` +
+    `Пользователь написал: "${userQuestion}". ` +
+    `Ответь ему кратко, дружелюбно и естественно. ` +
+    `Если это просто приветствие, поздоровайся в ответ. ` +
+    `Отвечай на языке пользователя.`;
+
+  const aiResponse = await chatModel.generateContent(prompt);
+  return aiResponse.response.text().trim();
+}
+
+/**
+ * Always call Gemini Flash: grounded on Knowledge when similarity is high,
+ * otherwise a short general assistant reply (no hardcoded GPT Mini stub).
+ */
+export async function generateGeminiFallbackReply(
+  prisma: PrismaClient,
+  projectId: string,
+  userQuestion: string
+): Promise<{
+  text: string;
+  source: 'rag' | 'gemini_flash';
+  similarity?: number;
+  model: string;
+}> {
+  let hit: { content: string; similarity: number } | null = null;
+  try {
+    hit = await findRelevantKnowledge(prisma, projectId, userQuestion);
+  } catch (err) {
+    // Embedding / vector search failed — still answer with general Flash
+    console.error('Knowledge search failed, using general Gemini reply:', err);
+  }
+
+  if (hit) {
+    const text = await generateRagAnswer(userQuestion, hit.content);
+    return {
+      text,
+      source: 'rag',
+      similarity: hit.similarity,
+      model: CHAT_MODEL,
+    };
+  }
+
+  const text = await generateGeneralReply(userQuestion);
+  return {
+    text,
+    source: 'gemini_flash',
+    model: CHAT_MODEL,
+  };
+}
+
+export { SIMILARITY_THRESHOLD, CHAT_MODEL };

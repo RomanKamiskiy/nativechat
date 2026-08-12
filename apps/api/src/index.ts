@@ -12,8 +12,7 @@ import { getOrCreateAiBot } from './agents/botUser';
 import { estimateAutoTuneTokens, toSetupBudgetSnapshot, DEFAULT_SETUP_TOKEN_BUDGET } from './setup/budget';
 import { publicSetupState, runAutoTune } from './setup/autoTune';
 import {
-  findRelevantKnowledge,
-  generateRagAnswer,
+  generateGeminiFallbackReply,
   hasGeminiKey,
   storeKnowledge,
 } from './rag/gemini';
@@ -783,46 +782,59 @@ fastify.ready((err) => {
                     }
                   }
 
-                  // 1) RAG over Knowledge (Gemini embeddings + flash)
+                  // 1) Gemini Flash always (RAG-grounded when Knowledge hits, else general chat)
+                  // Skips hardcoded GPT Mini stub. MCP provider still handled below if no Gemini key.
                   if (hasGeminiKey()) {
+                    const bot = await getOrCreateAiBot(prisma, project.id);
+                    await publishEvent(roomId, {
+                      type: 'typing_start',
+                      payload: { userId: bot.id, name: bot.name },
+                    });
                     try {
-                      const hit = await findRelevantKnowledge(
+                      const reply = await generateGeminiFallbackReply(
                         prisma,
-                        conversation.projectId,
+                        project.id,
                         userText
                       );
-                      if (hit) {
-                        const aiText = await generateRagAnswer(userText, hit.content);
-                        const bot = await getOrCreateAiBot(prisma, conversation.projectId);
-                        const aiMessage = await prisma.message.create({
-                          data: {
-                            content: aiText,
-                            senderId: bot.id,
-                            conversationId: roomId,
-                            type: 'text',
-                            metadata: {
-                              source: 'rag',
-                              similarity: hit.similarity,
-                            },
+                      const aiMessage = await prisma.message.create({
+                        data: {
+                          content: reply.text,
+                          senderId: bot.id,
+                          conversationId: roomId,
+                          type: 'text',
+                          metadata: {
+                            source: reply.source,
+                            model: reply.model,
+                            ...(reply.similarity != null
+                              ? { similarity: reply.similarity }
+                              : {}),
                           },
-                          include: {
-                            sender: {
-                              select: { id: true, name: true, avatarUrl: true, role: true },
-                            },
+                        },
+                        include: {
+                          sender: {
+                            select: { id: true, name: true, avatarUrl: true, role: true },
                           },
-                        });
-                        await publishEvent(roomId, {
-                          type: 'new_message',
-                          payload: aiMessage,
-                        });
-                        return; // skip free_mini / mcp when RAG answered
-                      }
-                    } catch (ragErr) {
-                      fastify.log.error({ ragErr }, 'RAG reply failed — falling back to agent');
+                        },
+                      });
+                      await publishEvent(roomId, {
+                        type: 'new_message',
+                        payload: aiMessage,
+                      });
+                      return;
+                    } catch (geminiErr) {
+                      fastify.log.error(
+                        { geminiErr },
+                        'Gemini Flash reply failed — falling back to agent router'
+                      );
+                    } finally {
+                      await publishEvent(roomId, {
+                        type: 'typing_stop',
+                        payload: { userId: bot.id, name: bot.name },
+                      });
                     }
                   }
 
-                  // 2) Fallback: free mini or customer's MCP agent
+                  // 2) Fallback only when Gemini unavailable: MCP agent (or legacy free_mini)
                   await replyWithAgent(roomId, userText);
                 } catch (e) {
                   fastify.log.error({ e }, 'agent reply failed');

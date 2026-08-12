@@ -1,9 +1,10 @@
 /**
- * BYO-Agent router: free GPT Mini (platform-paid) or customer's MCP agent.
+ * BYO-Agent router: free Gemini Flash (platform) or customer's MCP agent.
  * Avoids forcing NativeChat into token tariffs / usage quotas for heavy chat use.
  */
 
 import { callMcpAgent } from '../mcp/client';
+import { generateGeneralReply, hasGeminiKey, CHAT_MODEL } from '../rag/gemini';
 
 export type AgentProvider = 'free_mini' | 'mcp';
 
@@ -37,16 +38,34 @@ const SYSTEM_PROMPT =
   'Be concise and helpful. Reply in the same language as the user.';
 
 async function replyWithFreeMini(input: AgentReplyInput): Promise<AgentReply> {
+  // Prefer Gemini Flash (no hardcoded demo stub)
+  if (hasGeminiKey()) {
+    try {
+      const content = await generateGeneralReply(input.userMessage);
+      return {
+        content,
+        provider: 'free_mini',
+        model: CHAT_MODEL,
+      };
+    } catch (err: any) {
+      return {
+        content:
+          'Извините, ИИ-ассистент временно недоступен. Попробуйте позже или подключите своего агента.',
+        provider: 'free_mini',
+        model: CHAT_MODEL,
+        error: err?.message || 'gemini_failed',
+      };
+    }
+  }
+
   if (!OPENAI_API_KEY) {
-    // Demo / offline fallback so install works without platform OpenAI billing setup
     return {
       content:
-        `[GPT Mini · free] Привет! Я бесплатный встроенный агент NativeChat.\n\n` +
-        `Вы написали: «${truncate(input.userMessage, 280)}»\n\n` +
-        `Сейчас ответ идёт в demo-режиме (нет OPENAI_API_KEY). ` +
-        `Чтобы не жечь токены платформы на проде — подключите своего агента через MCP в настройках чата.`,
+        'GEMINI_API_KEY не настроен — не могу сгенерировать ответ. ' +
+        'Добавьте ключ в apps/api/.env или подключите своего агента (agentUrl / MCP).',
       provider: 'free_mini',
-      model: 'demo-free-mini',
+      model: 'unconfigured',
+      error: 'missing_gemini_and_openai',
     };
   }
 
@@ -74,7 +93,7 @@ async function replyWithFreeMini(input: AgentReplyInput): Promise<AgentReply> {
     const errText = await res.text();
     return {
       content:
-        'Извините, бесплатный GPT Mini временно недоступен. Попробуйте позже или подключите своего агента через MCP.',
+        'Извините, бесплатный ассистент временно недоступен. Попробуйте позже или подключите своего агента через MCP.',
       provider: 'free_mini',
       model: FREE_MINI_MODEL,
       error: `OpenAI ${res.status}: ${errText.slice(0, 200)}`,
@@ -84,7 +103,7 @@ async function replyWithFreeMini(input: AgentReplyInput): Promise<AgentReply> {
   const data = (await res.json()) as any;
   const content =
     data.choices?.[0]?.message?.content?.trim() ||
-    'Пустой ответ от GPT Mini.';
+    'Пустой ответ от ассистента.';
 
   return {
     content,
@@ -152,8 +171,4 @@ export function toPublicAgentConfig(project: ProjectAgentConfig & { name?: strin
     mcpToolName: provider === 'mcp' ? project.mcpToolName || 'chat' : null,
     hasMcpAuth: Boolean(project.mcpAuthToken),
   };
-}
-
-function truncate(s: string, n: number) {
-  return s.length > n ? s.slice(0, n - 1) + '…' : s;
 }
