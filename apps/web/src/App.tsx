@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ChatWidget,
   type AgentConfigPublic,
+  type NativiqAction,
   type SetupBudgetPublic,
 } from '@nativechat/react-sdk';
 import { MessageCircle, X } from 'lucide-react';
@@ -18,6 +19,7 @@ type Session = {
 function App() {
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
+  const [lastAction, setLastAction] = useState<NativiqAction | null>(null);
   const apiUrl = getDemoApiUrl();
   const wsUrl = getDemoWsUrl();
 
@@ -129,6 +131,34 @@ function App() {
 
       {/* Nativiq Widget Overlay */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+        {lastAction && (
+          <div
+            data-testid="action-banner"
+            className="mb-3 max-w-[380px] rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-lg"
+          >
+            <div className="flex items-start gap-3">
+              <div className="min-w-0 break-words">
+                <span className="font-semibold">Экшен из чата:</span>{' '}
+                {lastAction.actionId}
+                {lastAction.payload != null && (
+                  <span className="text-emerald-700">
+                    {' '}
+                    · {JSON.stringify(lastAction.payload)}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                aria-label="Скрыть уведомление"
+                onClick={() => setLastAction(null)}
+                className="shrink-0 text-emerald-700 hover:text-emerald-900"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {isWidgetOpen && (
           <div className="mb-4 shadow-2xl rounded-2xl overflow-hidden border border-slate-200 bg-white origin-bottom-right">
             {session ? (
@@ -146,10 +176,9 @@ function App() {
                 showSetupPanel={false}
                 showAgentSelector={false}
                 onAction={(action) => {
+                  // Cursor/webview suppresses window.alert — surface it in the UI instead
                   console.log('Widget Action Triggered:', action);
-                  alert(
-                    `Экшен из чата!\nТип: ${action.actionId}\nДанные: ${JSON.stringify(action.payload)}`
-                  );
+                  setLastAction(action);
                 }}
                 onAgentChange={(agent) =>
                   setSession((s) => (s ? { ...s, agent } : s))

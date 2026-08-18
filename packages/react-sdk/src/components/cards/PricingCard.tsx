@@ -54,9 +54,12 @@ export const PricingCard = ({
         ))}
       </ul>
       <button
-        onClick={() =>
-          onAction && onAction({ actionId: 'checkout', payload: { price: metadata.price } })
-        }
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onAction?.({ actionId: 'checkout', payload: { price: metadata.price } });
+        }}
         style={{
           width: '100%',
           padding: '10px',
