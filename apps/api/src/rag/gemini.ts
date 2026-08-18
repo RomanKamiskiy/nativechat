@@ -16,6 +16,24 @@ function getGenAI() {
   return new GoogleGenerativeAI(key);
 }
 
+// Gemini Flash is occasionally overloaded (429/503) — retry a few times before giving up.
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (!status || !RETRYABLE_STATUS.has(status) || attempt === attempts - 1) {
+        throw err;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
+    }
+  }
+  throw new Error('unreachable');
+}
+
 export function hasGeminiKey(): boolean {
   return Boolean(process.env.GEMINI_API_KEY);
 }
@@ -29,10 +47,12 @@ export async function embedText(content: string): Promise<number[]> {
   const genAI = getGenAI();
   const embedModel = genAI.getGenerativeModel({ model: EMBED_MODEL });
   // gemini-embedding-001 defaults to 3072; request 768 to match Knowledge.embedding
-  const result = await embedModel.embedContent({
-    content: { parts: [{ text: content }] },
-    outputDimensionality: EMBED_DIMS,
-  } as any);
+  const result = await withRetry(() =>
+    embedModel.embedContent({
+      content: { parts: [{ text: content }] },
+      outputDimensionality: EMBED_DIMS,
+    } as any)
+  );
   const values = result.embedding?.values;
   if (!values?.length) {
     throw new Error('Empty embedding from Gemini');
@@ -117,7 +137,7 @@ export async function generateRagAnswer(
     `4) Отвечай на языке пользователя.\n` +
     `5) ${UI_PRICING_INSTRUCTION}`;
 
-  const aiResponse = await chatModel.generateContent(prompt);
+  const aiResponse = await withRetry(() => chatModel.generateContent(prompt));
   return aiResponse.response.text().trim();
 }
 
@@ -132,7 +152,7 @@ export async function generateGeneralReply(userQuestion: string): Promise<string
     `Отвечай на языке пользователя. ` +
     UI_PRICING_INSTRUCTION;
 
-  const aiResponse = await chatModel.generateContent(prompt);
+  const aiResponse = await withRetry(() => chatModel.generateContent(prompt));
   return aiResponse.response.text().trim();
 }
 
