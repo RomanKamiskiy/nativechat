@@ -1,5 +1,8 @@
 node_modules/
 .env
+# любые производные .env (бэкапы, локальные оверрайды) — кроме шаблона
+.env.*
+!.env.example
 dist/
 build/
 .next/
